@@ -1,0 +1,22 @@
+# Yamaha's firmware and anything made from it. Never publish these.
+*.bin
+*.mid
+boot.snap
+*.snap
+
+# build output
+*.exe
+*.exe~
+emu
+emu_new
+
+# soundfonts are the user's own (GeneralUser GS may be redistributed, but it is large)
+soundfonts/*.sf2
+soundfonts/*.sf3
+soundfonts/*.dls
+soundfonts/*.sfogg
+
+# screenshots of the real firmware's screens and working files
+/*.png
+scratch_panel/
+scratch_ad/

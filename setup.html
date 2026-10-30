@@ -1,0 +1,73 @@
+<!doctype html>
+<!-- Copyright (C) 2026 Doffu. SPDX-License-Identifier: GPL-3.0-only. See LICENSE and NOTICE.md. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QYΩ Emulator setup</title>
+<style>
+  :root { --bg: #15171b; --card: #1f2229; --fg: #e8eaee; --muted: #9aa1ae; --accent: #bad18f; --bad: #ff8a80; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; padding: 24px 16px; }
+  main { width: min(640px, 100%); background: var(--card); border-radius: 14px; padding: 28px; box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+  h1 { margin: 0 0 4px; font-size: 26px; }
+  p { color: var(--muted); margin: 8px 0; }
+  #drop { margin: 20px 0 8px; border: 2px dashed #4a505c; border-radius: 12px; padding: 34px 16px; text-align: center; cursor: pointer; transition: .15s; }
+  #drop.over, #drop:hover { border-color: var(--accent); background: rgba(186,209,143,.07); }
+  #drop b { color: var(--fg); }
+  #msg { min-height: 1.5em; margin: 10px 0 0; }
+  #msg.bad { color: var(--bad); }
+  #msg.ok { color: var(--accent); }
+  .bar { height: 6px; border-radius: 3px; background: #2c313b; overflow: hidden; margin-top: 12px; display: none; }
+  .bar i { display: block; height: 100%; width: 40%; background: var(--accent); animation: slide 1.2s ease-in-out infinite; }
+  @keyframes slide { 0% { margin-left: -40%; } 100% { margin-left: 100%; } }
+  ul { color: var(--muted); padding-left: 20px; }
+  small { color: var(--muted); }
+  @media (prefers-reduced-motion: reduce) { .bar i { animation: none; width: 100%; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>QYΩ Emulator</h1>
+  <p>This program does not include Yamaha's firmware. Give it your own copy and it will start the unit.</p>
+  <div id="drop" tabindex="0" role="button"><b>Drop the firmware file here</b><br>or click to choose it<input id="file" type="file" hidden></div>
+  <ul>
+    <li>Yamaha's version 1.37 update file for the sequencer (the MIDI file, about 2.4 MB), or</li>
+    <li>a 2 MiB flash image of that version.</li>
+  </ul>
+  <div class="bar" id="bar"><i></i></div>
+  <p id="msg"></p>
+  <small>The file stays on this computer. It is saved next to the program as the firmware image, and nothing is sent anywhere else. The first start takes about 35 seconds, later starts about a second.</small>
+</main>
+<script>
+const drop = document.getElementById('drop'), file = document.getElementById('file'), msg = document.getElementById('msg'), bar = document.getElementById('bar');
+const say = (t, c) => { msg.textContent = t; msg.className = c || ''; };
+async function send(f) {
+  if (!f) return;
+  say('Checking the file ...'); bar.style.display = 'block';
+  let r;
+  try { r = await fetch('/firmware', { method: 'POST', body: f }); } catch (e) { bar.style.display = 'none'; say('Could not reach the program.', 'bad'); return; }
+  if (!r.ok) { bar.style.display = 'none'; say((await r.text()).trim(), 'bad'); return; }
+  say('Firmware accepted. Starting the unit, about 35 seconds ...', 'ok');
+  poll();
+}
+async function poll() {
+  for (;;) {
+    await new Promise(r => setTimeout(r, 1000));
+    try {
+      const s = await (await fetch('/firmware/state', { cache: 'no-store' })).json();
+      if (s.state === 'ready') { location.reload(); return; }
+      if (s.state === 'error') { bar.style.display = 'none'; say(s.message || 'The unit stopped while starting.', 'bad'); return; }
+    } catch (e) {}
+  }
+}
+drop.addEventListener('click', () => file.click());
+drop.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') file.click(); });
+file.addEventListener('change', () => send(file.files[0]));
+['dragenter', 'dragover'].forEach(n => drop.addEventListener(n, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(n => drop.addEventListener(n, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => send(e.dataTransfer.files[0]));
+(async () => { try { const s = await (await fetch('/firmware/state')).json(); if (s.state === 'booting') { bar.style.display = 'block'; say('Starting the unit ...', 'ok'); poll(); } } catch (e) {} })();
+</script>
+</body>
+</html>

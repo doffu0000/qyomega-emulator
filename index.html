@@ -1,0 +1,1064 @@
+<!doctype html>
+<!-- Copyright (C) 2026 Doffu. SPDX-License-Identifier: GPL-3.0-only. See LICENSE and NOTICE.md. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QYΩ Emulator</title>
+<style>
+  :root {
+    --bg: #1b1d21; --fg: #e6e6e6; --muted: #8b9098; --panel: #2a2d33;
+    --key: #3a3e46; --keyhi: #4b505a; --accent: #4aa3ff; --white: #e9e9ea; --black: #15171a;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #eceef1; --fg: #1d2025; --muted: #5d6470; --panel: #ffffff;
+      --key: #dfe2e7; --keyhi: #cdd2da; --accent: #0b6bcb; --white: #ffffff; --black: #23262b;
+    }
+  }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); font-family: system-ui, sans-serif; }
+  main { max-width: 1800px; margin: 0 auto; padding: 8px 16px 16px; }
+  /* The faceplate follows the front panel drawing in the owner's manual (p. 20), with a bigger screen and a
+     piano style keyboard. Everything inside is placed in percentages of it and sized in cqw, so the whole
+     thing scales as one picture. The colours are the unit's own, so they do not follow the page theme. */
+  /* the faceplate is as large as fits the window, so the whole unit is in view without scrolling */
+  #face { position: relative; width: min(100%, calc((100vh - 48px) * 1700 / 1000)); margin: 0 auto; aspect-ratio: 1700 / 1000; container-type: inline-size; border-radius: 2.03cqw;
+    background: linear-gradient(#4b4e54, #34363b); color: #e8e9eb; overflow: hidden; user-select: none; -webkit-user-select: none; }
+  #face > * { position: absolute; }
+  #bezel { border-radius: 1.86cqw; background: linear-gradient(#2a2c30, #1d1e21); box-shadow: inset 0 0 0 0.212cqw #5a5d64; }
+  #lcdwin { border-radius: 0.339cqw; overflow: hidden; box-shadow: 0 0 0 0.296cqw #0d0d0e; }
+  #piano { inset: 0; pointer-events: none; }
+  #piano > * { pointer-events: auto; }
+  .fk { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; box-sizing: border-box;
+    padding: 0; border: 0.127cqw solid #1a1b1e; border-radius: 0.678cqw; background: linear-gradient(#e4e6e9, #bfc2c8); color: #1d2025;
+    font: italic 700 max(7px, 1.06cqw)/1.1 system-ui, sans-serif; cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .fk:hover { background: linear-gradient(#f2f3f5, #cdd0d5); }
+  .fk.down, .fk.down:hover { background: var(--accent); color: #fff; }
+  .fk.round { border-radius: 50%; }
+  .fk.round .kb { top: 9%; right: 50%; transform: translateX(50%); }
+  .fk.sm { font-size: max(6px, 0.847cqw); }
+  .fk.dk { background: linear-gradient(#34363b, #17181a); color: #f0f0f0; }
+  .fk.dk:hover { background: linear-gradient(#44474d, #222326); }
+  .fk .kb { position: absolute; top: 2px; right: 4px; font: 500 max(6px, 0.72cqw) ui-monospace, Consolas, monospace; opacity: 0.7; font-style: normal; }
+  /* keyboard: flush white keys, black keys over the boundaries */
+  .pk .kb { top: auto; bottom: 3px; right: 50%; transform: translateX(50%); }
+  .pk.wk { border-radius: 0 0 0.593cqw 0.593cqw; border-color: #55585e; background: linear-gradient(#f6f6f4, #d6d6d2); justify-content: flex-end; padding-bottom: 1.78cqw; }
+  .pk.wk:hover { background: linear-gradient(#fff, #e4e4e0); }
+  .pk.bk { border-radius: 0 0 0.424cqw 0.424cqw; border-color: #000; background: linear-gradient(#34363a, #0a0a0b); color: #f2f2f2; justify-content: flex-start; padding-top: 0.424cqw; z-index: 2; }
+  .pk.bk:hover { background: linear-gradient(#4a4d52, #1a1b1d); }
+  .pk.down, .pk.down:hover { background: var(--accent); color: #fff; }
+  .pk .t { font-size: max(6px, 0.72cqw); font-weight: 600; }
+  .pk .m { font-size: max(8px, 1.1cqw); }
+  .pk.bk .m { font-size: max(6px, 0.805cqw); line-height: 1.2; }
+  .fl { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; font: italic 700 max(6px, 0.762cqw)/1 system-ui, sans-serif; color: #d9dbde; pointer-events: none; }
+  .fled { position: absolute; border-radius: 50%; box-sizing: border-box; border: 0.169cqw solid var(--ledbd, #15161a); background-color: var(--ledoff, #4a2022); background-image: var(--ledshine, none); transform: translate(-50%, -50%); }
+  .fled.green { background-color: var(--ledgoff, #1b3a22); }
+  .fled.green.on { background-color: var(--ledgon, #4dff72); box-shadow: 0 0 0.76cqw var(--ledgon, #4dff72); }
+  .fled.on { background-color: var(--ledon, #ff4a3c); box-shadow: 0 0 0.762cqw var(--ledon, #ff4a3c); }
+  .ring { position: absolute; border-radius: 50%; box-sizing: border-box; border: 0.169cqw solid #666a72; background: rgba(255,255,255,.10); transform: translate(-50%, -50%); }
+  h1 { font-size: 1.1rem; margin: 0 0 12px; }
+  .card { background: var(--panel); padding: 12px; border-radius: 8px; margin-bottom: 12px; }
+  #lcdwrap { position: relative; border-radius: 4px; overflow: hidden; background: #e6e6e6; }
+  #lcd { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+  /* the tint multiplies the light grey of the screen image, so black pixels stay black */
+  #lcdwrap.tint { background: var(--tint, #bad18f); }
+  input[type=color] { width: 34px; height: 24px; padding: 0; border: 1px solid var(--muted); border-radius: 4px; background: none; cursor: pointer; vertical-align: middle; }
+  #lcdwrap.tint #lcd { mix-blend-mode: multiply; }
+  /* one cell is one LCD pixel: the display is 128 x 64 pixels */
+  #lcdwrap.grid::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background-image: linear-gradient(to right, rgba(0,0,0,0.16) 1px, transparent 1px),
+                      linear-gradient(to bottom, rgba(0,0,0,0.16) 1px, transparent 1px);
+    background-size: calc(100% / 128) calc(100% / 64);
+  }
+  #info { color: var(--muted); font-size: 0.85rem; margin-top: 8px; font-variant-numeric: tabular-nums; }
+  .group { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .group:last-child { margin-bottom: 0; }
+  button.k {
+    flex: 1 1 64px; min-height: 40px; padding: 4px 6px; border: 0; border-radius: 6px;
+    background: var(--key); color: var(--fg); font: inherit; font-size: 0.85rem;
+    touch-action: none; user-select: none; -webkit-user-select: none; cursor: pointer;
+  }
+  button.k:hover { background: var(--keyhi); }
+  button.k.down { background: var(--accent); color: #fff; }
+  button.k { position: relative; }
+  /* the computer key that presses this button */
+  .kb { position: absolute; top: 2px; right: 5px; font: 0.62rem ui-monospace, Consolas, monospace; opacity: 0.65; pointer-events: none; }
+  .piano .kb { top: 3px; right: auto; left: 50%; transform: translateX(-50%); }
+  #reset, #factory { flex: 0 0 auto; padding: 4px 14px; }
+  #vol { align-self: center; }
+  #voices, #skinSel { align-self: center; max-width: 200px; min-height: 40px; background: var(--key); color: var(--fg); border: 0; border-radius: 6px; padding: 0 8px; font: inherit; font-size: 0.85rem; }
+  #reset { margin-left: auto; }
+  #factory.armed { background: #c0392b; color: #fff; }
+  .piano { display: flex; gap: 2px; margin-top: 4px; }
+  .piano button { flex: 1 1 0; min-width: 0; min-height: 64px; padding: 0 0 4px; border-radius: 0 0 4px 4px;
+    display: flex; align-items: flex-end; justify-content: center; font-size: 0.6rem; }
+  .piano button.w { background: var(--white); color: #222; }
+  .piano button.b { background: var(--black); color: #ddd; min-height: 44px; }
+  .piano button.down { background: var(--accent); color: #fff; }
+  .hint { color: var(--muted); font-size: 0.8rem; }
+  #leds { display: flex; gap: 10px; margin-top: 10px; color: var(--muted); font-size: 0.7rem; }
+  #leds span { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  #leds i { width: 12px; height: 12px; border-radius: 50%; background: var(--key); box-shadow: inset 0 0 0 1px var(--muted); }
+  #leds i.on { background: #ff5a3c; box-shadow: 0 0 6px #ff5a3c; }
+  label.opt { display: block; color: var(--muted); font-size: 0.85rem; margin-bottom: 8px; }
+  #drop { border: 2px dashed var(--muted); border-radius: 8px; padding: 18px 12px; text-align: center; color: var(--muted); cursor: pointer; margin-bottom: 8px; }
+  #drop.over { border-color: var(--accent); color: var(--fg); }
+  textarea { width: 100%; box-sizing: border-box; background: var(--key); color: var(--fg); border: 0; border-radius: 6px; padding: 8px; font: 0.8rem ui-monospace, Consolas, monospace; margin-bottom: 8px; }
+  #sysprog { display: none; margin: 0 0 8px; }
+  #sysprog.on { display: block; }
+  #sysbar { height: 10px; border-radius: 5px; background: var(--key); overflow: hidden; }
+  #sysfill { height: 100%; width: 0; background: var(--accent); transition: width 0.3s linear; }
+  #sysprog.done #sysfill { background: #3aa655; }
+  #sysprog.failed #sysfill { background: #c0392b; }
+  #systext { margin-top: 4px; font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  #sysout, #midistat { margin: 8px 0 0; white-space: pre-wrap; word-break: break-all; color: var(--muted); font: 0.78rem ui-monospace, Consolas, monospace; max-height: 240px; overflow: auto; }
+
+  /* Depth: a moulded body with dark end caps, a front lip, a recessed keyboard well and raised keys. */
+  #face { border-radius: 1.6cqw;
+    background: repeating-linear-gradient(0deg, rgba(255,255,255,.014) 0 1px, transparent 1px 3px),
+      linear-gradient(180deg, #62656c 0%, #4c4f55 7%, #3e4046 55%, #34363b 100%);
+    box-shadow: inset 0 0.18cqw 0 rgba(255,255,255,.35), inset 0 -0.35cqw 0.5cqw rgba(0,0,0,.6),
+      0 1.2cqw 2.4cqw rgba(0,0,0,.55); }
+  #piano { z-index: 2; }
+  .cap, .lip, .well, .groove { z-index: 0; }
+  .cap.l { background: linear-gradient(90deg, #0b0c0e, #202226 55%, #31343a); box-shadow: inset -0.15cqw 0 0 rgba(255,255,255,.22), 0.3cqw 0 0.6cqw rgba(0,0,0,.5); }
+  .cap.r { background: linear-gradient(270deg, #0b0c0e, #202226 55%, #31343a); box-shadow: inset 0.15cqw 0 0 rgba(255,255,255,.22), -0.3cqw 0 0.6cqw rgba(0,0,0,.5); }
+  .lip { background: linear-gradient(180deg, #2f3136, #1a1b1e 40%, #0e0f11); box-shadow: inset 0 0.15cqw 0 rgba(255,255,255,.18), 0 -0.3cqw 0.6cqw rgba(0,0,0,.5); }
+  .well { border-radius: 0.7cqw; background: linear-gradient(#17181b, #0e0f11); box-shadow: inset 0 0.45cqw 0.8cqw rgba(0,0,0,.85), 0 0.1cqw 0 rgba(255,255,255,.16); }
+  .groove { background: linear-gradient(#121316 50%, rgba(255,255,255,.14) 50%); }
+  #bezel { box-shadow: inset 0 0 0 0.2cqw #666a72, inset 0 0.4cqw 0.8cqw rgba(0,0,0,.7), 0 0.2cqw 0 rgba(255,255,255,.12), 0 0.7cqw 1.2cqw rgba(0,0,0,.5); }
+  .fk { box-shadow: inset 0 0.12cqw 0 rgba(255,255,255,.85), 0 0.28cqw 0 #6f727a, 0 0.5cqw 0.6cqw rgba(0,0,0,.5); }
+  .fk.dk { box-shadow: inset 0 0.12cqw 0 rgba(255,255,255,.22), 0 0.28cqw 0 #060708, 0 0.5cqw 0.6cqw rgba(0,0,0,.6); }
+  .pk.wk { box-shadow: inset 0 0.1cqw 0 #fff, 0 0.3cqw 0 #8c8e92, 0 0.45cqw 0.45cqw rgba(0,0,0,.4); }
+  .pk.bk { box-shadow: inset 0.1cqw 0.1cqw 0 rgba(255,255,255,.28), inset -0.1cqw 0 0 rgba(255,255,255,.1), 0 0.45cqw 0.5cqw rgba(0,0,0,.7); }
+  .fk.down, .fk.down:hover { box-shadow: inset 0 0.2cqw 0.4cqw rgba(0,0,0,.5), 0 0.06cqw 0 #6f727a; }
+  /* The stage leaves a strip on the left for the sound tab, which overlaps the edge of the body. */
+  #stage { position: relative; isolation: isolate; box-sizing: border-box; padding-left: 146px; margin: 0 auto;
+    width: min(100%, calc((100vh - 48px) * 1700 / 1000 + 146px)); }
+  #face { z-index: 1; }
+  #soundtab { z-index: 0; position: absolute; left: 0; top: 9%; width: 164px; display: flex; flex-direction: column; gap: 16px; }
+  .strow { display: flex; align-items: center; }
+  .stlabel { flex: 0 0 58px; font: 700 11px/1 system-ui, sans-serif; letter-spacing: .08em; color: var(--muted); }
+  .stline { flex: 1 1 auto; height: 2px; margin-right: -2px; background: var(--muted); border-radius: 1px; }
+  #sound, #reset, #factory { flex: 0 0 84px; height: 30px; box-sizing: border-box; padding: 0 18px 0 0; border: 1px solid #111; border-radius: 15px;
+    background: linear-gradient(#e4e6e9, #bfc2c8); color: #1d2025; font: 700 11px/1 system-ui, sans-serif; letter-spacing: .03em;
+    box-shadow: inset 0 1px 0 #fff, 0 2px 0 #6f727a, 0 4px 6px rgba(0,0,0,.45); cursor: pointer; }
+  #sound:active, #reset:active, #factory:active { box-shadow: inset 0 2px 4px rgba(0,0,0,.4), 0 1px 0 #6f727a; }
+  #factory.armed { background: linear-gradient(#ff7a6c, #c0392b); color: #fff; }
+  /* the volume fader: a slot in the strip with a ribbed cap, standing against the edge of the body */
+  .strow.vol { align-items: flex-start; }
+  #vol { -webkit-appearance: none; appearance: none; writing-mode: vertical-lr; direction: rtl; flex: none; margin: 0 16px 0 auto;
+    width: 30px; height: 150px; padding: 0; background: transparent; cursor: pointer; }
+  #vol::-webkit-slider-runnable-track { width: 9px; border-radius: 5px; background: var(--vt, linear-gradient(90deg, #08090a, #26282c)); box-shadow: var(--vtsh, inset 0 0 4px #000, 0 1px 0 rgba(255,255,255,.22)); }
+  #vol::-webkit-slider-thumb { -webkit-appearance: none; width: 30px; height: 18px; margin-left: -10.5px; border-radius: 3px; border: 1px solid var(--vthbd, #111);
+    background: repeating-linear-gradient(0deg, transparent 0 7px, var(--ribs, rgba(0,0,0,.35)) 7px 8px), var(--vth, linear-gradient(90deg, #b9bcc3, #f2f3f5 45%, #9da0a8)); box-shadow: 0 2px 4px rgba(0,0,0,.6); }
+  #vol::-moz-range-track { width: 9px; border-radius: 5px; background: var(--vt, linear-gradient(90deg, #08090a, #26282c)); box-shadow: var(--vtsh, inset 0 0 4px #000); }
+  #vol::-moz-range-thumb { width: 28px; height: 16px; border-radius: 3px; border: 1px solid var(--vthbd, #111);
+    background: repeating-linear-gradient(0deg, transparent 0 7px, var(--ribs, rgba(0,0,0,.35)) 7px 8px), var(--vth, linear-gradient(90deg, #b9bcc3, #f2f3f5 45%, #9da0a8)); }
+  /* sound is off until the user turns it on: a pulsing red glow so it is easy to find (an animation, so it beats every look's own shadow) */
+  @keyframes soundoff { 0%, 100% { box-shadow: 0 0 5px 1px rgba(255,40,40,.55), 0 2px 4px rgba(0,0,0,.35); } 50% { box-shadow: 0 0 16px 4px rgba(255,50,50,.95), 0 2px 4px rgba(0,0,0,.35); } }
+  #sound:not(.on) { animation: soundoff 1.8s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) { #sound:not(.on) { animation: none; box-shadow: 0 0 10px 3px rgba(255,50,50,.85); } }
+  #sound.on { background: linear-gradient(#6af88c, #2fbf55); color: #04270f; box-shadow: inset 0 1px 0 #c9ffd8, 0 2px 0 #1d7a38, 0 0 10px rgba(77,255,114,.7); }
+
+  /* ---- looks for the whole device: Dark is the base styling above, the others override it ---- */
+  .sect { font-size: 0.75rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; font-weight: 700; }
+  .skinbtn.sel, :root[data-skin] button.k.skinbtn.sel { background: var(--accent); color: #fff; }
+
+  /* Frutiger Aero: glossy glass, sky blue, aqua and grass green */
+  :root[data-skin="aero"] { --bg: #bfe6ff; --fg: #0d3b66; --muted: #34769f; --panel: rgba(255,255,255,.6); --key: rgba(255,255,255,.75); --keyhi: #ffffff; --accent: #1fa2ff; --white: #fff; --black: #0d3b66; --logo: #0d3b66; }
+  :root[data-skin="aero"] body { min-height: 100vh; background:
+    radial-gradient(60vmax 28vmax at 12% 6%, rgba(255,255,255,.9), transparent 62%),
+    radial-gradient(50vmax 22vmax at 88% 16%, rgba(255,255,255,.7), transparent 62%),
+    radial-gradient(circle at 78% 62%, rgba(255,255,255,.55) 0 2.2vmax, transparent 2.3vmax),
+    radial-gradient(circle at 18% 48%, rgba(255,255,255,.5) 0 1.4vmax, transparent 1.5vmax),
+    linear-gradient(#3fa9ee 0%, #98d9ff 42%, #d4f3ff 68%, #86d95f 100%) fixed; }
+  :root[data-skin="aero"] .card { background: var(--panel); border: 1px solid rgba(255,255,255,.95); border-radius: 16px; backdrop-filter: blur(8px);
+    box-shadow: 0 6px 22px rgba(20,90,160,.28), inset 0 1px 0 #fff; }
+  :root[data-skin="aero"] button.k, :root[data-skin="aero"] #voices, :root[data-skin="aero"] #skinSel { background: linear-gradient(#fff 0%, #dff4ff 48%, #a9e0ff 52%, #d8f4ff 100%); color: #0d3b66;
+    border: 1px solid #7cc4ee; box-shadow: inset 0 1px 0 #fff, 0 2px 4px rgba(20,90,160,.3); }
+  :root[data-skin="aero"] button.k:hover { background: linear-gradient(#fff 0%, #eefaff 48%, #bfeaff 52%, #e6f8ff 100%); }
+  :root[data-skin="aero"] textarea { background: rgba(255,255,255,.8); color: #0d3b66; }
+  :root[data-skin="aero"] #face { background: linear-gradient(180deg, #b9e8ff 0%, #7fd0fb 9%, #4fb6f0 50%, #2f94dc 100%);
+    box-shadow: inset 0 0.2cqw 0 #fff, inset 0 -0.4cqw 0.6cqw rgba(0,60,140,.5), 0 1.2cqw 2.4cqw rgba(20,90,160,.5); }
+  :root[data-skin="aero"] #face::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 44%; pointer-events: none;
+    background: linear-gradient(rgba(255,255,255,.6), rgba(255,255,255,.06)); border-radius: 1.6cqw 1.6cqw 100% 100% / 1.6cqw 1.6cqw 14% 14%; }
+  :root[data-skin="aero"] .cap.l { background: linear-gradient(90deg, #2a9a28, #6fd244 55%, #b4f27a); box-shadow: inset -0.15cqw 0 0 rgba(255,255,255,.7), 0.3cqw 0 0.6cqw rgba(0,60,20,.45); }
+  :root[data-skin="aero"] .cap.r { background: linear-gradient(270deg, #2a9a28, #6fd244 55%, #b4f27a); box-shadow: inset 0.15cqw 0 0 rgba(255,255,255,.7), -0.3cqw 0 0.6cqw rgba(0,60,20,.45); }
+  :root[data-skin="aero"] .lip { background: linear-gradient(180deg, #3d9be8, #0f62b8 45%, #0a468c); box-shadow: inset 0 0.15cqw 0 rgba(255,255,255,.7), 0 -0.3cqw 0.6cqw rgba(0,50,120,.45); }
+  :root[data-skin="aero"] .well { background: linear-gradient(#bfe9ff, #8fd0f4); box-shadow: inset 0 0.45cqw 0.8cqw rgba(0,70,140,.55), 0 0.1cqw 0 rgba(255,255,255,.8); }
+  :root[data-skin="aero"] .groove { background: linear-gradient(#2a86c8 50%, rgba(255,255,255,.8) 50%); }
+  :root[data-skin="aero"] #bezel { background: linear-gradient(#f3fbff, #a9dcf7);
+    box-shadow: inset 0 0 0 0.2cqw #fff, inset 0 0.4cqw 0.8cqw rgba(0,80,160,.35), 0 0.2cqw 0 rgba(255,255,255,.6), 0 0.7cqw 1.2cqw rgba(0,70,140,.4); }
+  :root[data-skin="aero"] #lcdwin { box-shadow: 0 0 0 0.296cqw #0b4a8c; }
+  :root[data-skin="aero"] .fl { color: #0d3b66; }
+  :root[data-skin="aero"] .ring { border-color: rgba(255,255,255,.75); }
+  :root[data-skin="aero"] .fk { background: linear-gradient(#fff 0%, #e2f5ff 48%, #a9e0ff 52%, #d6f3ff 100%); color: #0d3b66; border-color: #4aa6dc;
+    box-shadow: inset 0 0.12cqw 0 #fff, 0 0.28cqw 0 #3b8fc4, 0 0.5cqw 0.8cqw rgba(0,70,140,.45); }
+  :root[data-skin="aero"] .fk:hover { background: linear-gradient(#fff 0%, #f0fbff 48%, #bfeaff 52%, #e4f8ff 100%); }
+  :root[data-skin="aero"] .fk.dk { background: linear-gradient(#6cc0ff 0%, #2a8ae6 48%, #0b5fc0 52%, #2f93f0 100%); color: #fff; border-color: #0a4c9a;
+    box-shadow: inset 0 0.12cqw 0 rgba(255,255,255,.7), 0 0.28cqw 0 #083f80, 0 0.5cqw 0.8cqw rgba(0,40,110,.5); }
+  :root[data-skin="aero"] .fk.dk:hover { background: linear-gradient(#86ccff 0%, #3d9af0 48%, #1a70cf 52%, #48a3f5 100%); }
+  :root[data-skin="aero"] .pk.wk { background: linear-gradient(#fff, #e3f5ff); border-color: #8cc9ec; box-shadow: inset 0 0.1cqw 0 #fff, 0 0.3cqw 0 #6fb4dc, 0 0.45cqw 0.45cqw rgba(0,70,140,.35); }
+  :root[data-skin="aero"] .pk.wk:hover { background: linear-gradient(#fff, #f2fbff); }
+  :root[data-skin="aero"] .pk.bk { background: linear-gradient(#3a82d0 0%, #14478f 50%, #082a5c 52%, #0a3678 100%); border-color: #04193a; color: #fff;
+    box-shadow: inset 0.1cqw 0.1cqw 0 rgba(255,255,255,.5), 0 0.45cqw 0.5cqw rgba(0,30,90,.6); }
+  :root[data-skin="aero"] .pk.bk:hover { background: linear-gradient(#4f96e4 0%, #1d58ab 50%, #0c3677 52%, #1048a0 100%); }
+  :root[data-skin="aero"] .fk.down, :root[data-skin="aero"] .fk.down:hover, :root[data-skin="aero"] .pk.down, :root[data-skin="aero"] .pk.down:hover { background: var(--accent); color: #fff;
+    box-shadow: inset 0 0.2cqw 0.4cqw rgba(0,40,110,.5), 0 0.06cqw 0 #3b8fc4; }
+  :root[data-skin="aero"] #sound, :root[data-skin="aero"] #reset, :root[data-skin="aero"] #factory { background: linear-gradient(#fff 0%, #dff4ff 48%, #a9e0ff 52%, #d8f4ff 100%); color: #0d3b66; border-color: #4aa6dc;
+    box-shadow: inset 0 1px 0 #fff, 0 2px 0 #3b8fc4, 0 4px 6px rgba(0,70,140,.4); }
+  :root[data-skin="aero"] #sound.on { background: linear-gradient(#b4ffc6 0%, #5fe483 48%, #25b653 52%, #52da78 100%); color: #04321a; box-shadow: inset 0 1px 0 #e8ffee, 0 2px 0 #1d7a38, 0 0 12px rgba(77,255,114,.8); }
+  :root[data-skin="aero"] #factory.armed { background: linear-gradient(#ffc2b8 0%, #ff7a6c 48%, #d3402e 52%, #ff6a58 100%); color: #fff; }
+  :root[data-skin="aero"] .stline { background: #34769f; }
+
+  #lcdwrap { filter: brightness(var(--bright, 1)); }
+  #lcdwrap.neg #lcd { filter: invert(1); }
+
+  
+
+  /* look: kawaii */
+  :root[data-skin="kawaii"] #face::before { content: ''; position: absolute; inset: -45%; pointer-events: none; transform: rotate(-18deg);
+    background: radial-gradient(circle at 25% 25%, rgba(255,255,255,.55) 0 .5cqw, transparent .6cqw), radial-gradient(circle at 75% 75%, rgba(255,255,255,.55) 0 .5cqw, transparent .6cqw);
+    background-size: 4.1cqw 4.1cqw; }
+  :root[data-skin="kawaii"] { --bg: #ffe3f1; --fg: #6a2d52; --muted: #b0638f; --panel: #fff5fa; --key: #ffd1e6; --keyhi: #ffbddb; --accent: #ff6fb0; --white: #fff; --black: #7d52d6; --logo: #8a3a6d; }
+  :root[data-skin="kawaii"] body { min-height: 100vh; background: linear-gradient(#ffd6ec, #e6d4ff 55%, #cdf5ea) fixed; }
+  :root[data-skin="kawaii"] .card { background: var(--panel); border: 3px solid #fff; border-radius: 22px; box-shadow: 0 6px 0 #f5b3d4, 0 10px 18px rgba(200,90,150,.25); }
+  :root[data-skin="kawaii"] button.k, :root[data-skin="kawaii"] #voices, :root[data-skin="kawaii"] #skinSel { background: linear-gradient(#fff, #ffe1f0); color: #8a3a6d; border: 2px solid #ffb3d6; box-shadow: 0 3px 0 #f09cc6; }
+  :root[data-skin="kawaii"] button.k:hover { background: linear-gradient(#fff, #ffd1e8); }
+  :root[data-skin="kawaii"] textarea { background: #fffafd; color: #8a3a6d; }
+  :root[data-skin="kawaii"] #face { background: linear-gradient(180deg, #ffd9ec 0%, #ffbfdf 12%, #ffa6d0 55%, #ff93c4 100%); box-shadow: inset 0 0.2cqw 0 #fff, inset 0 -0.4cqw 0.6cqw rgba(190,60,120,.45), 0 1.2cqw 2.4cqw rgba(200,80,140,.4); }
+  :root[data-skin="kawaii"] .cap.l { background: linear-gradient(90deg, #7fdcc3, #b9f3e1 55%, #dffaf0); box-shadow: inset -0.15cqw 0 0 rgba(255,255,255,.85), 0.3cqw 0 0.6cqw rgba(60,160,130,.4); }
+  :root[data-skin="kawaii"] .cap.r { background: linear-gradient(270deg, #7fdcc3, #b9f3e1 55%, #dffaf0); box-shadow: inset 0.15cqw 0 0 rgba(255,255,255,.85), -0.3cqw 0 0.6cqw rgba(60,160,130,.4); }
+  :root[data-skin="kawaii"] .lip { background: linear-gradient(180deg, #d7b8ff, #b894f0 45%, #9f78e0); box-shadow: inset 0 0.15cqw 0 rgba(255,255,255,.8), 0 -0.3cqw 0.6cqw rgba(120,80,200,.4); }
+  :root[data-skin="kawaii"] .well { background: linear-gradient(#fff0f8, #ffd6ea); box-shadow: inset 0 0.45cqw 0.8cqw rgba(200,80,140,.4), 0 0.1cqw 0 rgba(255,255,255,.9); }
+  :root[data-skin="kawaii"] .groove { background: linear-gradient(#e88fbd 50%, rgba(255,255,255,.9) 50%); }
+  :root[data-skin="kawaii"] #bezel { background: linear-gradient(#fffafd, #ffe3f1); box-shadow: inset 0 0 0 0.2cqw #fff, inset 0 0.4cqw 0.8cqw rgba(200,80,140,.3), 0 0 0 0.25cqw #ff9ccb, 0 0.7cqw 1.2cqw rgba(200,80,140,.35); }
+  :root[data-skin="kawaii"] #lcdwin { box-shadow: 0 0 0 0.296cqw #c75d98; }
+  :root[data-skin="kawaii"] .fl { color: #8a3a6d; }
+  :root[data-skin="kawaii"] .ring { border-color: rgba(255,255,255,.9); }
+  :root[data-skin="kawaii"] .fk { background: linear-gradient(#fff, #ffe6f3 60%, #ffd1e8); color: #8a3a6d; border-color: #ff9ccb; box-shadow: inset 0 0.12cqw 0 #fff, 0 0.28cqw 0 #f08ab9, 0 0.5cqw 0.6cqw rgba(200,80,140,.35); }
+  :root[data-skin="kawaii"] .fk:hover { background: linear-gradient(#fff, #ffdcee 60%, #ffc4e2); }
+  :root[data-skin="kawaii"] .fk.dk { background: linear-gradient(#a9ecd9, #5fcfb3); color: #1f5f4e; border-color: #3fb497; box-shadow: inset 0 0.12cqw 0 rgba(255,255,255,.8), 0 0.28cqw 0 #3fa48a, 0 0.5cqw 0.6cqw rgba(40,140,110,.4); }
+  :root[data-skin="kawaii"] .fk.dk:hover { background: linear-gradient(#bcf3e3, #75dcc2); }
+  :root[data-skin="kawaii"] .pk.wk { background: linear-gradient(#fff, #fff0f7); border-color: #ffb3d6; box-shadow: inset 0 0.1cqw 0 #fff, 0 0.3cqw 0 #f09cc6, 0 0.45cqw 0.45cqw rgba(200,80,140,.3); }
+  :root[data-skin="kawaii"] .pk.wk:hover { background: linear-gradient(#fff, #ffe6f2); }
+  :root[data-skin="kawaii"] .pk.bk { background: linear-gradient(#b48cf0, #7d52d6); border-color: #5a38b0; color: #fff; box-shadow: inset 0.1cqw 0.1cqw 0 rgba(255,255,255,.5), 0 0.45cqw 0.5cqw rgba(90,50,170,.55); }
+  :root[data-skin="kawaii"] .pk.bk:hover { background: linear-gradient(#c4a2f6, #8c62e0); }
+  :root[data-skin="kawaii"] .fk.down, :root[data-skin="kawaii"] .fk.down:hover, :root[data-skin="kawaii"] .pk.down, :root[data-skin="kawaii"] .pk.down:hover { background: var(--accent); color: #fff; box-shadow: inset 0 0.2cqw 0.4cqw rgba(190,60,120,.5), 0 0.06cqw 0 #f08ab9; }
+  :root[data-skin="kawaii"] #sound, :root[data-skin="kawaii"] #reset, :root[data-skin="kawaii"] #factory { background: linear-gradient(#fff, #ffe1f0); color: #8a3a6d; border-color: #ff9ccb; box-shadow: 0 2px 0 #f09cc6, 0 4px 6px rgba(200,80,140,.3); }
+  :root[data-skin="kawaii"] #sound.on { background: linear-gradient(#c9ffe3, #6fe3a6); color: #0f4a30; box-shadow: inset 0 1px 0 #fff, 0 2px 0 #3fa478, 0 0 12px rgba(110,240,170,.8); }
+  :root[data-skin="kawaii"] #factory.armed { background: linear-gradient(#ff7a6c, #c0392b); color: #fff; }
+  :root[data-skin="kawaii"] .stline { background: var(--muted); }
+  
+
+  /* look: terminal */
+  :root[data-skin="terminal"] { --bg: #050805; --fg: #8dff9d; --muted: #3fae55; --panel: #0a110a; --key: #0f1a10; --keyhi: #17301a; --accent: #22c93c; --white: #0e2512; --black: #000; --logo: #33ff66; }
+  :root[data-skin="terminal"] body { min-height: 100vh; background: repeating-linear-gradient(0deg, rgba(0,255,70,.035) 0 1px, transparent 1px 3px), #050805; }
+  :root[data-skin="terminal"] .card { background: var(--panel); border: 1px solid #1f6b2b; border-radius: 2px; box-shadow: 0 0 14px rgba(30,255,80,.12); }
+  :root[data-skin="terminal"] button.k, :root[data-skin="terminal"] #voices, :root[data-skin="terminal"] #skinSel { background: #07130a; color: #33ff66; border: 1px solid #1f8f36; box-shadow: none; }
+  :root[data-skin="terminal"] button.k:hover { background: #0e2a13; }
+  :root[data-skin="terminal"] textarea { background: #030603; color: #33ff66; }
+  :root[data-skin="terminal"] #face { background: repeating-linear-gradient(0deg, rgba(0,255,70,.04) 0 1px, transparent 1px 0.4cqw), #070d08; box-shadow: inset 0 0 0 0.15cqw #1f8f36, inset 0 0 3cqw rgba(0,255,70,.12), 0 0 2.4cqw rgba(0,255,70,.22); }
+  :root[data-skin="terminal"] .cap.l { background: linear-gradient(90deg, #020402, #0a160c); box-shadow: inset -0.15cqw 0 0 #1f8f36; }
+  :root[data-skin="terminal"] .cap.r { background: linear-gradient(270deg, #020402, #0a160c); box-shadow: inset 0.15cqw 0 0 #1f8f36; }
+  :root[data-skin="terminal"] .lip { background: #050905; box-shadow: inset 0 0.15cqw 0 #1f8f36; }
+  :root[data-skin="terminal"] .well { background: #030603; box-shadow: inset 0 0 1.2cqw rgba(0,255,70,.18), 0 0 0 0.12cqw #1f8f36; }
+  :root[data-skin="terminal"] .groove { background: linear-gradient(#0f4a1c 50%, #0a2a10 50%); }
+  :root[data-skin="terminal"] #bezel { background: #050a06; box-shadow: inset 0 0 0 0.2cqw #2ac34a, 0 0 1.2cqw rgba(0,255,70,.28); }
+  :root[data-skin="terminal"] #lcdwin { box-shadow: 0 0 0 0.296cqw #0f5a1e; }
+  :root[data-skin="terminal"] .fl { color: #33ff66; }
+  :root[data-skin="terminal"] .ring { border-color: #1f8f36; }
+  :root[data-skin="terminal"] .fk { background: #07130a; color: #33ff66; border-color: #1f8f36; box-shadow: 0 0 0.6cqw rgba(0,255,70,.18), inset 0 0 0.5cqw rgba(0,255,70,.14); }
+  :root[data-skin="terminal"] .fk:hover { background: #0e2a13; }
+  :root[data-skin="terminal"] .fk.dk { background: #001a07; color: #8dff9d; border-color: #33ff66; box-shadow: 0 0 0.7cqw rgba(0,255,70,.3), inset 0 0 0.6cqw rgba(0,255,70,.2); }
+  :root[data-skin="terminal"] .fk.dk:hover { background: #06310f; }
+  :root[data-skin="terminal"] .pk.wk { background: linear-gradient(#143a1a, #0b2410); border-color: #1f8f36; box-shadow: inset 0 0 0.6cqw rgba(0,255,70,.15); }
+  :root[data-skin="terminal"] .pk.wk:hover { background: linear-gradient(#1c5226, #103516); }
+  :root[data-skin="terminal"] .pk.bk { background: #000; border-color: #33ff66; color: #33ff66; box-shadow: 0 0 0.6cqw rgba(0,255,70,.3); }
+  :root[data-skin="terminal"] .pk.bk:hover { background: #06200b; }
+  :root[data-skin="terminal"] .fk.down, :root[data-skin="terminal"] .fk.down:hover, :root[data-skin="terminal"] .pk.down, :root[data-skin="terminal"] .pk.down:hover { background: var(--accent); color: #001a07; box-shadow: 0 0 1cqw rgba(0,255,70,.6); }
+  :root[data-skin="terminal"] #sound, :root[data-skin="terminal"] #reset, :root[data-skin="terminal"] #factory { background: #07130a; color: #33ff66; border-color: #1f8f36; box-shadow: 0 0 6px rgba(0,255,70,.2); }
+  :root[data-skin="terminal"] #sound.on { background: #33ff66; color: #001a07; box-shadow: 0 0 12px rgba(51,255,102,.8); }
+  :root[data-skin="terminal"] #factory.armed { background: linear-gradient(#ff7a6c, #c0392b); color: #fff; }
+  :root[data-skin="terminal"] .stline { background: var(--muted); }
+  :root[data-skin="terminal"] body, :root[data-skin="terminal"] button, :root[data-skin="terminal"] select, :root[data-skin="terminal"] textarea, :root[data-skin="terminal"] .fl, :root[data-skin="terminal"] .fk, :root[data-skin="terminal"] .pk, :root[data-skin="terminal"] .stlabel { font-family: ui-monospace, Consolas, monospace; }
+  :root[data-skin="terminal"] .fl, :root[data-skin="terminal"] .fk, :root[data-skin="terminal"] .pk { font-style: normal; }
+  :root[data-skin="terminal"] #factory.armed { background: #ff3b3b; color: #000; }
+
+  /* look: vintage */
+  :root[data-skin="vintage"] { --bg: #d9d2c0; --fg: #2d2a24; --muted: #6d6554; --panel: #ece6d4; --key: #cfc7b2; --keyhi: #bdb49b; --accent: #c8501e; --white: #fffaea; --black: #3a3830; --logo: #2d2a24; }
+  :root[data-skin="vintage"] body { min-height: 100vh; background: repeating-linear-gradient(0deg, rgba(0,0,0,.022) 0 1px, transparent 1px 3px), linear-gradient(#d2cbb8, #bfb7a2) fixed; }
+  :root[data-skin="vintage"] .card { background: var(--panel); border: 1px solid #a69d86; border-radius: 6px; box-shadow: inset 0 1px 0 #fff, 0 2px 4px rgba(0,0,0,.2); }
+  :root[data-skin="vintage"] button.k, :root[data-skin="vintage"] #voices, :root[data-skin="vintage"] #skinSel { background: linear-gradient(#e8e2d0, #c9c1aa); color: #2d2a24; border: 1px solid #8f8670; box-shadow: 0 2px 0 #8f8670; }
+  :root[data-skin="vintage"] button.k:hover { background: linear-gradient(#f1ecdb, #d4ccb5); }
+  :root[data-skin="vintage"] textarea { background: #f6f1e0; color: #2d2a24; }
+  :root[data-skin="vintage"] #face { background: repeating-linear-gradient(0deg, rgba(0,0,0,.022) 0 1px, transparent 1px 3px), linear-gradient(180deg, #e9e3d0 0%, #dcd5bf 10%, #cdc5ad 55%, #bdb59b 100%); box-shadow: inset 0 0.2cqw 0 #fffbe9, inset 0 -0.35cqw 0.5cqw rgba(60,50,30,.5), 0 1.2cqw 2.4cqw rgba(50,40,20,.45); }
+  :root[data-skin="vintage"] .cap.l { background: repeating-linear-gradient(0deg, rgba(0,0,0,.14) 0 .15cqw, transparent .15cqw .6cqw), linear-gradient(90deg, #3a2210, #5c3a1c 50%, #7a4e26); box-shadow: inset -0.15cqw 0 0 rgba(255,220,170,.3), 0.3cqw 0 0.6cqw rgba(40,25,10,.5); }
+  :root[data-skin="vintage"] .cap.r { background: repeating-linear-gradient(0deg, rgba(0,0,0,.14) 0 .15cqw, transparent .15cqw .6cqw), linear-gradient(270deg, #3a2210, #5c3a1c 50%, #7a4e26); box-shadow: inset 0.15cqw 0 0 rgba(255,220,170,.3), -0.3cqw 0 0.6cqw rgba(40,25,10,.5); }
+  :root[data-skin="vintage"] .lip { background: linear-gradient(180deg, #b3aa90, #9a9179 45%, #7a7260); box-shadow: inset 0 0.15cqw 0 rgba(255,250,225,.6), 0 -0.3cqw 0.6cqw rgba(60,50,30,.4); }
+  :root[data-skin="vintage"] .well { background: linear-gradient(#a8a089, #8f8770); box-shadow: inset 0 0.45cqw 0.8cqw rgba(50,40,20,.55), 0 0.1cqw 0 rgba(255,250,225,.6); }
+  :root[data-skin="vintage"] .groove { background: linear-gradient(#8f8670 50%, rgba(255,255,255,.6) 50%); }
+  :root[data-skin="vintage"] #bezel { background: linear-gradient(#d9d2bd, #bcb49c); box-shadow: inset 0 0 0 0.2cqw #6d6554, inset 0 0.4cqw 0.8cqw rgba(60,50,30,.4), 0 0.2cqw 0 rgba(255,250,225,.6), 0 0.7cqw 1.2cqw rgba(50,40,20,.4); }
+  :root[data-skin="vintage"] #lcdwin { box-shadow: 0 0 0 0.296cqw #3a372f; }
+  :root[data-skin="vintage"] .fl { color: #2d2a24; }
+  :root[data-skin="vintage"] .ring { border-color: #8f8670; }
+  :root[data-skin="vintage"] .fk { background: linear-gradient(#efe9d6, #d2caaf); color: #2d2a24; border-color: #7a725d; box-shadow: inset 0 0.12cqw 0 #fff, 0 0.28cqw 0 #7f775f, 0 0.5cqw 0.6cqw rgba(50,40,20,.4); }
+  :root[data-skin="vintage"] .fk:hover { background: linear-gradient(#f7f2e2, #dcd4b9); }
+  :root[data-skin="vintage"] .fk.dk { background: linear-gradient(#5d5a50, #3a3830); color: #efe9d6; border-color: #1d1c18; box-shadow: inset 0 0.12cqw 0 rgba(255,250,225,.3), 0 0.28cqw 0 #1d1c18, 0 0.5cqw 0.6cqw rgba(30,25,10,.5); }
+  :root[data-skin="vintage"] .fk.dk:hover { background: linear-gradient(#6c695e, #46443b); }
+  :root[data-skin="vintage"] .pk.wk { background: linear-gradient(#fffaea, #e9dfc0); border-color: #9a916f; box-shadow: inset 0 0.1cqw 0 #fff, 0 0.3cqw 0 #8f8665, 0 0.45cqw 0.45cqw rgba(50,40,20,.4); }
+  :root[data-skin="vintage"] .pk.wk:hover { background: linear-gradient(#fff, #f2e9cc); }
+  :root[data-skin="vintage"] .pk.bk { background: linear-gradient(#3a3830, #15140f); border-color: #0b0a07; color: #efe9d6; box-shadow: inset 0.1cqw 0.1cqw 0 rgba(255,250,225,.25), 0 0.45cqw 0.5cqw rgba(30,25,10,.65); }
+  :root[data-skin="vintage"] .pk.bk:hover { background: linear-gradient(#4a483e, #22211a); }
+  :root[data-skin="vintage"] .fk.down, :root[data-skin="vintage"] .fk.down:hover, :root[data-skin="vintage"] .pk.down, :root[data-skin="vintage"] .pk.down:hover { background: var(--accent); color: #fff; box-shadow: inset 0 0.2cqw 0.4cqw rgba(60,30,10,.5), 0 0.06cqw 0 #7f775f; }
+  :root[data-skin="vintage"] #sound, :root[data-skin="vintage"] #reset, :root[data-skin="vintage"] #factory { background: linear-gradient(#e8e2d0, #c9c1aa); color: #2d2a24; border-color: #7a725d; box-shadow: inset 0 1px 0 #fff, 0 2px 0 #7f775f, 0 4px 6px rgba(50,40,20,.35); }
+  :root[data-skin="vintage"] #sound.on { background: linear-gradient(#c8f59a, #7cc247); color: #173a08; box-shadow: inset 0 1px 0 #eaffc8, 0 2px 0 #4d8a26, 0 0 10px rgba(130,220,70,.7); }
+  :root[data-skin="vintage"] #factory.armed { background: linear-gradient(#ff7a6c, #c0392b); color: #fff; }
+  :root[data-skin="vintage"] .stline { background: var(--muted); }
+  
+
+  :root[data-skin="synthwave"] .pk.wk:hover { background: linear-gradient(#fff, #ddc9f8); }
+  :root[data-skin="synthwave"] .pk.bk { background: linear-gradient(#2b1257, #07011a); border-color: #ff2fa6; color: #3df2ff; box-shadow: 0 0 0.7cqw rgba(255,47,166,.6); }
+  :root[data-skin="synthwave"] .pk.bk:hover { background: linear-gradient(#3d1c78, #12042b); }
+  :root[data-skin="synthwave"] .fk.down, :root[data-skin="synthwave"] .fk.down:hover, :root[data-skin="synthwave"] .pk.down, :root[data-skin="synthwave"] .pk.down:hover { background: var(--accent); color: #fff; box-shadow: 0 0 1cqw rgba(255,47,166,.8), inset 0 0.2cqw 0.4cqw rgba(0,0,0,.4); }
+  :root[data-skin="synthwave"] #sound, :root[data-skin="synthwave"] #reset, :root[data-skin="synthwave"] #factory { background: linear-gradient(#2b1257, #1a0838); color: #3df2ff; border-color: #ff2fa6; box-shadow: 0 0 8px rgba(255,47,166,.5); }
+  :root[data-skin="synthwave"] #sound.on { background: linear-gradient(#aaffe0, #3dffb0); color: #032a1a; box-shadow: 0 0 14px rgba(61,255,176,.9); }
+  :root[data-skin="synthwave"] #factory.armed { background: linear-gradient(#ff7a6c, #c0392b); color: #fff; }
+  :root[data-skin="synthwave"] .stline { background: var(--muted); }
+  :root[data-skin="synthwave"] .stlabel { text-shadow: 0 0 6px rgba(255,47,166,.7); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; align-items: stretch; }
+  .row2 .card { margin-bottom: 0; }
+  @media (max-width: 760px) { .row2 { grid-template-columns: 1fr; } }
+  :root[data-skin="synthwave"] .pk.wk { color: #3a1a78; }
+  :root[data-skin="aero"] { --vt: linear-gradient(90deg, #0a3a78, #2a86c8); --vtsh: inset 0 0 4px rgba(0,30,90,.7), 0 1px 0 rgba(255,255,255,.7); --vth: linear-gradient(90deg, #9fdcff, #fff 45%, #6cc0ff); --vthbd: #3b8fc4; --ribs: rgba(13,59,102,.3); }
+  :root[data-skin="kawaii"] { --vt: linear-gradient(90deg, #e88fbd, #ffc2de); --vtsh: inset 0 0 4px rgba(190,60,120,.5), 0 1px 0 #fff; --vth: linear-gradient(90deg, #ffc2de, #fff 45%, #ff9ccb); --vthbd: #f08ab9; --ribs: rgba(138,58,109,.3); }
+  :root[data-skin="terminal"] { --vt: linear-gradient(90deg, #020a04, #0a2a10); --vtsh: inset 0 0 4px #000, 0 0 6px rgba(0,255,70,.35); --vth: linear-gradient(90deg, #0b3a14, #1d7a2f 45%, #0b3a14); --vthbd: #33ff66; --ribs: rgba(51,255,102,.55); }
+  :root[data-skin="vintage"] { --vt: linear-gradient(90deg, #2d2b24, #5a5547); --vtsh: inset 0 0 4px #000, 0 1px 0 rgba(255,250,225,.5); --vth: linear-gradient(90deg, #c9c1aa, #f1ecdb 45%, #a39b84); --vthbd: #3a372f; --ribs: rgba(45,42,36,.35); }
+  :root[data-skin="aero"] { --ledbd: #0a4a8c; --ledoff: #7a2f3a; --ledon: #ff5a4a; --ledgoff: #1c6b4a; --ledgon: #5dff9a; --ledshine: radial-gradient(circle at 35% 30%, rgba(255,255,255,.85) 0 16%, transparent 42%); }
+  :root[data-skin="kawaii"] { --ledbd: #ffb3d6; --ledoff: #e9a3c6; --ledon: #ff4f9a; --ledgoff: #b6e8d6; --ledgon: #5dffb0; --ledshine: radial-gradient(circle at 35% 30%, rgba(255,255,255,.85) 0 16%, transparent 42%); }
+  :root[data-skin="terminal"] { --ledbd: #1f8f36; --ledoff: #2a1600; --ledon: #ffb000; --ledgoff: #062a0e; --ledgon: #33ff66; }
+  :root[data-skin="vintage"] { --ledbd: #2d2a24; --ledoff: #5a2a1e; --ledon: #ff5a2a; --ledgoff: #2a4a1e; --ledgon: #7dff4a; --ledshine: radial-gradient(circle at 35% 30%, rgba(255,255,255,.45) 0 14%, transparent 38%); }
+  /* the maker's name, centred over the screen */
+  .brand { display: flex; align-items: center; justify-content: center; gap: 0.6cqw; }
+  .fl .xg { font: italic 900 1em/1 'Arial Black', 'Segoe UI Black', Impact, system-ui, sans-serif; letter-spacing: -0.04em; }
+  .brand .fl.cloud { flex: none; width: 2.7cqw; height: 2.7cqw; background: currentColor; -webkit-mask: var(--mask) center / contain no-repeat; mask: var(--mask) center / contain no-repeat; }
+  .brand .fl { position: static; transform: none; }
+  :root[data-ad] main > :not(:first-child) { display: none !important; }
+  :root[data-ad] main { padding: 12px 0 0 !important; max-width: none !important; }
+  :root[data-ad] body { overflow: hidden; }
+  :root[data-ad] .card { background: none !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; backdrop-filter: none !important; margin: 0 !important; }
+  :root[data-ad] #stage { width: 1876px !important; }
+  :root[data-ad] #face { width: 1730px !important; }
+</style>
+<script>
+  // the saved look, or ?skin=dark|aero|kawaii|terminal|vintage in the address, is set before the first paint
+  (() => {
+    let name = 'dark';
+    try { name = new URLSearchParams(location.search).get('skin') || localStorage.getItem('qyo.skin') || 'dark'; } catch (e) {}
+    if (!['aero', 'kawaii', 'terminal', 'vintage'].includes(name)) name = 'dark';
+    document.documentElement.dataset.skin = name;
+    try { if (new URLSearchParams(location.search).has('ad')) document.documentElement.dataset.ad = '1'; } catch (e) {}   // ?ad shows only the device, for screenshots
+  })();
+</script>
+</head>
+<body>
+<main>
+  <div class="card" style="padding:8px">
+    <div id="stage">
+      <div id="face">
+        <div id="bezel"></div>
+        <div id="lcdwin"><div id="lcdwrap" class="tint grid"><img id="lcd" width="512" height="256" alt="display"></div></div>
+        <div id="piano"></div>
+      </div>
+      <div id="soundtab">
+        <div class="strow"><span class="stlabel">SOUND</span><span class="stline"></span><button id="sound" type="button" title="Play what the unit sends its sound CPU on a generic synthesizer (not the unit's own sound samples)">OFF</button></div>
+        <div class="strow"><span class="stlabel">POWER</span><span class="stline"></span><button id="reset" type="button" title="Power cycle: the unit boots again and keeps its memory">RESET</button></div>
+        <div class="strow"><span class="stlabel">FACTORY</span><span class="stline"></span><button id="factory" type="button" title="Power cycle with blank memory: songs and patterns are lost and the unit runs Factory Set (press EXIT). Click twice.">RESET</button></div>
+        <div class="strow vol"><span class="stlabel">VOLUME</span><input type="range" id="vol" min="0" max="100" value="70" title="Volume" aria-label="Volume" orient="vertical"></div>
+      </div>
+    </div>
+  </div>
+  <div class="row2">
+  <div class="card">
+    <h2 class="sect">Look</h2>
+    <div class="group">
+      <select id="skinSel" aria-label="Look">
+        <option value="dark">Dark</option>
+        <option value="aero">Frutiger Aero</option>
+        <option value="kawaii">かわいい</option>
+        <option value="terminal">Terminal</option>
+        <option value="vintage">Vintage</option>
+      </select>
+    </div>
+    <h2 class="sect" style="margin-top:12px">Screen</h2>
+    <div class="group" style="margin:0">
+      <label class="opt" style="margin:0"><input type="checkbox" id="optGrid" checked> Pixel grid</label>
+      <label class="opt" style="margin:0"><input type="checkbox" id="optNeg"> Invert</label>
+      <label class="opt" style="margin:0">Colour <input type="color" id="tintColor" value="#bad18f"></label>
+      <label class="opt" style="margin:0">Brightness <input type="range" id="optBright" min="60" max="140" value="100" style="width:90px;vertical-align:middle"></label>
+      <button class="k" id="lcdReset" type="button" style="flex:0 0 auto;min-height:28px;padding:2px 10px">Reset look</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2 class="sect">Soundfont</h2>
+    <div class="group" style="margin:0 0 8px">
+      <select id="voices" title="Voices: the built in synthesizer or a soundfont from the soundfonts folder" aria-label="Soundfont"></select>
+    </div>
+    <h2 class="sect" style="margin-top:12px">Debug</h2>
+    <div id="info">starting</div>
+  </div>
+  </div>
+  <div class="card">
+    <div id="drop" tabindex="0">Drop a .syx file here, or click to choose one
+      <input id="file" type="file" accept=".syx,.SYX,application/octet-stream" hidden>
+    </div>
+    <label class="opt"><input type="checkbox" id="wrap" checked> Wrap in bulk mode ON and OFF (needed for pattern data and dump requests)</label>
+    <textarea id="hex" rows="2" spellcheck="false" placeholder="or hex text, for example: F0 43 20 5F 13 00 00 F7"></textarea>
+    <div class="group"><button class="k" id="sendhex" type="button">Send hex</button></div>
+    <div id="sysprog" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="SysEx transfer">
+      <div id="sysbar"><div id="sysfill"></div></div>
+      <div id="systext"></div>
+    </div>
+    <pre id="sysout">SysEx goes to the emulated unit only. Real MIDI ports are used only through the Live MIDI card below, when you choose them.</pre>
+  </div>
+  <div class="card" id="midicard">
+    <h2 class="sect">Live MIDI</h2>
+    <p class="hint" style="margin:0 0 8px">Off until you press Enable. Nothing is opened or remembered between visits. Only ports you pick here are used, and System Exclusive access is never requested from the browser.</p>
+    <div class="group">
+      <button class="k" id="midiEnable" type="button" style="flex:0 0 auto;min-height:28px;padding:2px 10px">Enable MIDI</button>
+      <label class="opt" style="margin:0">In <select id="midiIn" disabled aria-label="MIDI input"><option value="">None</option></select></label>
+      <label class="opt" style="margin:0">Out <select id="midiOut" disabled aria-label="MIDI output"><option value="">None</option></select></label>
+    </div>
+    <div class="group">
+      <label class="opt" style="margin:0"><input type="checkbox" id="midiClock"> Send clock, start and stop</label>
+      <label class="opt" style="margin:0"><input type="checkbox" id="midiPC"> Send program changes</label>
+    </div>
+    <pre id="midistat">Out sends only notes, pitch bend, aftertouch and the ordinary performance controllers. Never sent: System Exclusive (bulk dumps, resets, parameter changes), System Reset, bank select, RPN and NRPN, all sound off and the other mode controllers. Switching Out to None releases any held notes.</pre>
+  </div>
+  <p class="hint">The small letter on each button is the computer key that presses it, and several can be held at once, so SHIFT + F1 is Shift + 1. Digits are F1 to F4 then AMP, PARAM, SONG, PATTERN, MENU, CARD; Z X C V B N M are OCT DOWN, OCT UP, TOP, BWD, FWD, STOP, REC. A mouse click while a key is held also combines (hold Shift on the keyboard, click F1).</p>
+  <p class="hint">Free software under the GNU General Public License v3.0. Sound: SpessaSynth by spessasus (Apache-2.0), fflate by Arjun Barrett (MIT), stb_vorbis by Sean Barrett; GeneralUser GS by S. Christian Collins if you add it. CPU tables from MAME (BSD-3-Clause, Olivier Galibert). By Doffu. The Doffu cloud logo and the name DOFFU are copyright Doffu, all rights reserved, and are not under the GPL. Yamaha and XG are trademarks of Yamaha Corporation, and General MIDI is a trademark of the MIDI Manufacturers Association; this is an independent project and the firmware is not included. Full credits are in NOTICE.md.</p>
+</main>
+<script type="importmap">
+{ "imports": {
+    "spessasynth_lib": "/vendor/spessasynth_lib/index.js",
+    "spessasynth_core": "/vendor/spessasynth_core/index.js",
+    "fflate": "/vendor/fflate/browser.js",
+    "stb-vorbis": "/vendor/stb-vorbis/index.js"
+} }
+</script>
+<script src="/synth.js"></script>
+<script>
+  // ---- screen: swap the image only after the next frame has loaded, so there is no flicker ----
+  const lcd = document.getElementById('lcd');
+  const info = document.getElementById('info');
+  let busy = false;
+  function frame() {
+    if (busy) return;
+    busy = true;
+    const next = new Image();
+    next.onload = () => { lcd.src = next.src; busy = false; };
+    next.onerror = () => { busy = false; info.textContent = 'no connection'; };
+    next.src = '/screen.png?t=' + Date.now();
+  }
+  async function status() {
+    try {
+      const st = await (await fetch('/status')).json();
+      info.textContent = 'pc ' + st.pc + '   instructions ' + (st.cycles / 1e6).toFixed(1) + 'M' + (st.error ? '   stopped: ' + st.error : '');
+    } catch (e) { info.textContent = 'no connection'; }
+  }
+  setInterval(frame, 100);
+  setInterval(status, 400);
+  frame(); status();
+
+  // ---- display look: tint and grid, remembered per browser ----
+  const wrapEl = document.getElementById('lcdwrap');
+  try { for (const k of ['glow', 'contrast', 'tint']) localStorage.removeItem('qyo.' + k); } catch (e) {}   // options an earlier version had
+  for (const [id, cls] of [['optGrid', 'grid'], ['optNeg', 'neg']]) {
+    const box = document.getElementById(id);
+    try { const v = localStorage.getItem('qyo.' + cls); if (v !== null) box.checked = v === '1'; } catch (e) {}
+    const apply = () => {
+      wrapEl.classList.toggle(cls, box.checked);
+      try { localStorage.setItem('qyo.' + cls, box.checked ? '1' : '0'); } catch (e) {}
+    };
+    box.addEventListener('change', apply);
+    wrapEl.classList.toggle(cls, box.checked);
+  }
+  {
+    const colorEl = document.getElementById('tintColor'), brightEl = document.getElementById('optBright'), root = document.documentElement;
+    const DEFAULTS = { dark: '#bad18f', aero: '#aee6f5', kawaii: '#e6d9ff', terminal: '#6bff8a', vintage: '#c8d27a' };   // the screen colour each look starts with
+    const skinDefault = () => DEFAULTS[root.dataset.skin] || DEFAULTS.dark;
+    const BRIGHT = { dark: 100, aero: 120, kawaii: 105, terminal: 110, vintage: 100 };   // and the brightness (percent) each look starts with
+    const brightKey = () => 'qyo.bright.' + (root.dataset.skin || 'dark');
+    const loadBright = () => {
+      let v = null; try { v = localStorage.getItem(brightKey()); } catch (e) {}
+      brightEl.value = v || BRIGHT[root.dataset.skin] || 100;
+    };
+    const save = (k, v) => { try { localStorage.setItem('qyo.' + k, v); } catch (e) {} };
+    // a colour picked by hand is kept for the look it was picked in; the old single saved colour is dropped
+    const key = () => 'qyo.tint.' + (root.dataset.skin || 'dark');
+    let custom = null;
+    const loadCustom = () => { custom = null; try { custom = localStorage.getItem(key()); } catch (e) {} };
+    try { localStorage.removeItem('qyo.tintColor'); } catch (e) {}
+    loadCustom();
+    try { localStorage.removeItem('qyo.bright'); } catch (e) {}   // the old single setting
+    loadBright();
+    const applyLook = () => {
+      root.style.setProperty('--tint', colorEl.value);
+      root.style.setProperty('--bright', brightEl.value / 100);
+    };
+    colorEl.value = custom || skinDefault();
+    applyLook();
+    colorEl.addEventListener('input', () => { custom = colorEl.value; try { localStorage.setItem(key(), custom); } catch (e) {} applyLook(); });
+    brightEl.addEventListener('input', () => { save(brightKey().slice(6), brightEl.value); applyLook(); });
+    document.getElementById('lcdReset').addEventListener('click', () => {
+      custom = null;
+      colorEl.value = skinDefault(); brightEl.value = BRIGHT[root.dataset.skin] || 100;
+      for (const [id, on] of [['optGrid', true], ['optNeg', false]]) {
+        const b = document.getElementById(id); b.checked = on; b.dispatchEvent(new Event('change'));
+      }
+      try { localStorage.removeItem(key()); localStorage.removeItem(brightKey()); } catch (e) {}
+      applyLook();
+    });
+    // the look of the whole device
+    const skinSel = document.getElementById('skinSel');
+    const setSkin = (name, keep = true) => {
+      root.dataset.skin = name;
+      skinSel.value = name;
+      if (keep) save('skin', name);
+      loadCustom();
+      loadBright();
+      colorEl.value = custom || skinDefault();
+      applyLook();
+    };
+    skinSel.addEventListener('change', () => setSkin(skinSel.value));
+    setSkin(root.dataset.skin || 'dark', false);
+  }
+
+  // ---- keys ----
+  const buttons = {};   // key name -> element
+  const held = new Set();
+  function send(name, down) {
+    if (down === held.has(name)) return;
+    if (down) held.add(name); else held.delete(name);
+    if (buttons[name]) buttons[name].classList.toggle('down', down);
+    fetch('/key?name=' + encodeURIComponent(name) + '&down=' + (down ? 1 : 0), { method: 'POST' }).catch(() => {});
+  }
+  // Computer keyboard by physical key (e.code), so Shift + a digit or letter still finds the
+  // same key. Panel keys use the number row, the bottom letter row, Space, Enter, Esc, the
+  // arrows, minus and equals; the rest is a piano on A W S E D F T G Y H U J K O L P ;
+  const CODEMAP = {
+    ShiftLeft: 'SHIFT', ShiftRight: 'SHIFT', Space: 'PLAY', Enter: 'ENTER', Escape: 'EXIT',
+    ArrowUp: 'UP', ArrowDown: 'DOWN', ArrowLeft: 'LEFT', ArrowRight: 'RIGHT', Minus: 'DEC/NO', Equal: 'INC/YES',
+    Digit1: 'F1', Digit2: 'F2', Digit3: 'F3', Digit4: 'F4',
+    Digit5: 'AMP', Digit6: 'PARAM', Digit7: 'SONG', Digit8: 'PATTERN', Digit9: 'MENU', Digit0: 'CARD',
+    KeyZ: 'OCT DOWN', KeyX: 'OCT UP', KeyC: 'TOP', KeyV: 'BWD', KeyB: 'FWD', KeyN: 'STOP', KeyM: 'REC',
+    KeyA: 'k:C3', KeyW: 'k:Db3', KeyS: 'k:D3', KeyE: 'k:Eb3', KeyD: 'k:E3', KeyF: 'k:F3', KeyT: 'k:Gb3',
+    KeyG: 'k:G3', KeyY: 'k:Ab3', KeyH: 'k:A3', KeyU: 'k:Bb3', KeyJ: 'k:B3', KeyK: 'k:C4',
+    KeyO: 'k:Db4', KeyL: 'k:D4', KeyP: 'k:Eb4', Semicolon: 'k:E4',
+  };
+  const CODE_LABELS = { ShiftLeft: '⇧', Space: 'Space', Enter: 'Enter', Escape: 'Esc', ArrowUp: '↑', ArrowDown: '↓',
+    ArrowLeft: '←', ArrowRight: '→', Minus: '-', Equal: '=', Semicolon: ';' };
+  const keyLabel = {};   // key name -> text shown on its button
+  for (const [code, name] of Object.entries(CODEMAP)) {
+    if (name in keyLabel) continue;   // the first code wins (ShiftLeft before ShiftRight)
+    keyLabel[name] = CODE_LABELS[code] || code.replace(/^(Key|Digit)/, '');
+  }
+  function bind(el, name) {
+    buttons[name] = el;
+    if (keyLabel[name]) {
+      const kb = document.createElement('span');
+      kb.className = 'kb'; kb.textContent = keyLabel[name];
+      el.appendChild(kb);
+    }
+    if (name.startsWith('k:')) return;   // piano keys are handled together, see below, so a drag can slide across them
+    el.addEventListener('pointerdown', e => {
+      if (e.button !== 0) return;
+      el.setPointerCapture(e.pointerId); send(name, true); e.preventDefault();
+    });
+    for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) el.addEventListener(ev, () => send(name, false));
+  }
+  // Piano: press on a key and drag across the others to play each one in turn (a glissando).
+  // The key under the pointer is looked up on every move, so there is no pointer capture.
+  (() => {
+    const piano = document.getElementById('piano');
+    let down = null, current = null;   // the pointer that is held, and the key name it is sounding
+    const keyAt = (x, y) => {
+      const el = document.elementFromPoint(x, y);
+      const b = el && el.closest && el.closest('#piano button');
+      return b ? Object.keys(buttons).find(n => buttons[n] === b && n.startsWith('k:')) || null : null;
+    };
+    const move = name => {
+      if (name === current) return;
+      if (current) send(current, false);
+      current = name;
+      if (current) send(current, true);
+    };
+    piano.addEventListener('pointerdown', e => {
+      if (e.button !== 0) return;
+      const name = keyAt(e.clientX, e.clientY);
+      if (!name) return;
+      down = e.pointerId;
+      if (e.target.releasePointerCapture) { try { e.target.releasePointerCapture(e.pointerId); } catch (x) {} }   // touch captures by default
+      move(name); e.preventDefault();
+    });
+    addEventListener('pointermove', e => {   // on the window, so leaving the keys stops the note
+      if (down === e.pointerId) move(keyAt(e.clientX, e.clientY));
+    });
+    const up = e => { if (down === e.pointerId) { down = null; move(null); } };
+    addEventListener('pointerup', up);
+    addEventListener('pointercancel', up);
+  })();
+  // ---- sound: the bytes the unit sends its sound CPU, played on a generic synth (synth.js) ----
+  const sound = new QYSynth.QYSound();
+  sound.start();   // always follows the stream, so voices and volumes are right when sound is switched on
+  const soundBtn = document.getElementById('sound'), volEl = document.getElementById('vol'), voicesEl = document.getElementById('voices');
+  const soundState = () => {
+    soundBtn.classList.toggle('on', sound.on);
+    soundBtn.textContent = sound.on ? 'ON' : 'OFF';
+  };
+  soundBtn.addEventListener('click', async () => {
+    try { await sound.setEnabled(!sound.on); } catch (e) { sound.on = false; info.textContent = 'sound failed: ' + (e.message || e); }
+    soundState();
+    autoSound = false;
+  });
+  // Sound is off whenever the page loads and starts only from the button.
+  let autoSound = false;
+  try { localStorage.removeItem('qyo.sound'); } catch (e) {}   // an older version saved the choice
+  const audioCtx = () => { const e = sound.parser && sound.parser.eng; return e && e.ctx; };
+  const tryAutoSound = async () => {
+    if (!autoSound || sound.on) return;
+    try { await sound.setEnabled(true); } catch (e) { sound.on = false; }
+    soundState();
+  };
+  if (autoSound) {
+    tryAutoSound();   // sets sound.on at once; the context itself starts once the browser allows it
+    soundState();
+    const first = ev => {
+      if (ev.target === soundBtn) return;   // the button decides for itself
+      if (!autoSound) { removeEventListener('pointerdown', first, true); removeEventListener('keydown', first, true); return; }
+      if (!sound.on) { tryAutoSound(); return; }
+      const c = audioCtx();
+      if (c && c.state === 'running') { removeEventListener('pointerdown', first, true); removeEventListener('keydown', first, true); return; }
+      if (c) c.resume().catch(() => {});
+    };
+    addEventListener('pointerdown', first, true);
+    addEventListener('keydown', first, true);
+  }
+  // the voices: the built in synthesizer, then every file in the soundfonts folder
+  (async () => {
+    voicesEl.add(new Option('Built in synth', 'builtin'));
+    try {
+      for (const f of await (await fetch('/soundfonts.json')).json()) {
+        voicesEl.add(new Option(f.name.replace(/\.(sf2|sf3|dls|sfogg)$/i, '') + ' (' + (f.size / 1048576).toFixed(0) + ' MB)', f.name));
+      }
+    } catch (e) { /* no soundfont list */ }
+    let saved = null;
+    try { saved = localStorage.getItem('qyo.voices'); } catch (e) {}
+    if (saved && [...voicesEl.options].some(o => o.value === saved)) voicesEl.value = saved;
+    sound.choice = voicesEl.value;
+  })();
+  voicesEl.addEventListener('change', async () => {
+    try { localStorage.setItem('qyo.voices', voicesEl.value); } catch (e) {}
+    info.textContent = voicesEl.value === 'builtin' ? 'switching voices' : 'loading ' + voicesEl.value;
+    try { await sound.choose(voicesEl.value); info.textContent = ''; }
+    catch (e) { info.textContent = 'could not load ' + voicesEl.value + ': ' + (e.message || e); }
+    soundState();
+  });
+  try { const v = localStorage.getItem('qyo.vol'); if (v !== null) volEl.value = v; } catch (e) {}
+  const applyVol = () => {
+    sound.setVolume(volEl.value / 100);
+    try { localStorage.setItem('qyo.vol', volEl.value); } catch (e) {}
+  };
+  volEl.addEventListener('input', applyVol);
+  applyVol();
+
+  async function resetUnit(factory) {
+    for (const n of [...held]) send(n, false);
+    info.textContent = factory ? 'factory reset' : 'resetting';
+    try {
+      const r = await fetch('/reset' + (factory ? '?factory=1' : ''), { method: 'POST' });
+      if (!r.ok) info.textContent = 'reset failed: ' + (await r.text());
+    } catch (e) { info.textContent = 'no connection'; }
+  }
+  document.getElementById('reset').addEventListener('click', () => resetUnit(false));
+  // blank memory loses everything, so the button has to be clicked twice within three seconds
+  const factoryBtn = document.getElementById('factory');
+  let armTimer = null;
+  factoryBtn.addEventListener('click', () => {
+    if (armTimer === null) {
+      factoryBtn.classList.add('armed'); factoryBtn.textContent = 'SURE?';
+      armTimer = setTimeout(disarm, 3000);
+      return;
+    }
+    disarm();
+    resetUnit(true);
+  });
+  function disarm() {
+    clearTimeout(armTimer); armTimer = null;
+    factoryBtn.classList.remove('armed'); factoryBtn.textContent = 'RESET';
+  }
+
+  // ---- the faceplate: the controls laid out like the front panel (manual p. 20), with a larger screen ----
+  // Positions are centres and sizes in faceplate units; the faceplate is FW by FH of them.
+  const FX0 = 0, FY0 = 0, FW = 1700, FH = 1000;
+  const face = document.getElementById('face'), pianoBox = document.getElementById('piano');
+  const place = (el, cx, cy, w, h, parent) => {
+    Object.assign(el.style, {
+      left: ((cx - FX0) / FW * 100) + '%', top: ((cy - FY0) / FH * 100) + '%',
+      width: (w / FW * 100) + '%', height: (h / FH * 100) + '%', transform: 'translate(-50%, -50%)',
+    });
+    (parent || face).appendChild(el);
+    return el;
+  };
+  const deco = (cls, cx, cy, w, h) => place(Object.assign(document.createElement('div'), { className: cls }), cx, cy, w, h);
+  const text = (t, cx, cy, size) => {
+    const s = document.createElement('span');
+    s.className = 'fl'; s.innerHTML = t;
+    s.style.left = ((cx - FX0) / FW * 100) + '%'; s.style.top = ((cy - FY0) / FH * 100) + '%';
+    if (size) s.style.fontSize = 'max(5px, ' + (size / FW * 100) + 'cqw)';
+    face.appendChild(s);
+    return s;
+  };
+
+  // [name, label, centre x, centre y, width, height, style]
+  const PANEL = [
+    ['AMP', 'AMP<br>SIMULATOR', 150, 105, 150, 72, 'sm'],
+    ['PARAM', 'PARAMETER', 150, 195, 150, 56, 'sm'],
+    ['SONG', 'SONG', 150, 320, 150, 60, ''],
+    ['PATTERN', 'PATTERN', 150, 400, 150, 60, ''],
+    ['SHIFT', 'SHIFT', 105, 505, 84, 84, 'round sm'],
+    ['EXIT', 'EXIT', 195, 505, 84, 84, 'round sm'],
+    // unlabelled on the real unit; the faint name is only here so they can be told apart.
+    // They sit flush against the right edge of the screen bezel (x 1275).
+    ['F1', '<span style="opacity:.4;font-weight:500">F1</span>', 1325, 130, 100, 62, ''],
+    ['F2', '<span style="opacity:.4;font-weight:500">F2</span>', 1325, 232, 100, 62, ''],
+    ['F3', '<span style="opacity:.4;font-weight:500">F3</span>', 1325, 334, 100, 62, ''],
+    ['F4', '<span style="opacity:.4;font-weight:500">F4</span>', 1325, 436, 100, 62, ''],
+    ['MENU', 'MENU', 1473, 150, 86, 86, 'round'],
+    ['CARD', 'CARD', 1577, 74, 76, 76, 'round sm'],
+    ['UP', '&#9650;', 1530, 262, 80, 58, ''],
+    ['DOWN', '&#9660;', 1530, 378, 80, 58, ''],
+    ['LEFT', '&#9664;', 1467, 320, 58, 80, ''],
+    ['RIGHT', '&#9654;', 1593, 320, 58, 80, ''],
+    ['DEC/NO', '-1<br>NO', 1467, 478, 74, 74, 'round sm'],
+    ['INC/YES', '+1<br>YES', 1593, 478, 74, 74, 'round sm'],
+    ['ENTER', 'ENTER', 1530, 572, 130, 76, ''],
+    ['REC', '<span style="font-size:2.03cqw;font-style:normal">&#9679;</span>', 860, 625, 86, 70, ''],
+    ['TOP', '&#9646;&#9664;', 975, 625, 70, 70, ''],
+    ['STOP', '&#9632;', 1075, 625, 70, 70, ''],
+    ['PLAY', '&#9654;', 1190, 625, 86, 70, ''],
+    ['BWD', '&#9664;&#9664;', 1305, 625, 70, 70, 'sm'],
+    ['FWD', '&#9654;&#9654;', 1405, 625, 70, 70, 'sm'],
+    ['OCT DOWN', 'BASS<br>OCT<br>DOWN', 111, 790, 90, 130, 'sm dk'],
+    ['OCT UP', '&#9834;<br>OCT<br>UP', 213, 790, 90, 130, 'sm dk'],
+  ];
+  // the 25 keys, E2 to E4, laid out like a piano: [name, column, row, small label, big label].
+  // Column 0 is the left white key; a black key sits on the boundary between two white keys.
+  const KEYS = [
+    ['E2', 0, 'w', '+/-', 'E'], ['F2', 1, 'w', '', 'F'], ['Gb2', 2, 'b', '', '1<br>F#<br>Gb'],
+    ['G2', 2, 'w', '', 'G'], ['Ab2', 3, 'b', '', '2<br>G#<br>Ab'], ['A2', 3, 'w', '', 'A'],
+    ['Bb2', 4, 'b', '', '3<br>A#<br>Bb'], ['B2', 4, 'w', '', 'B'], ['C3', 5, 'w', '', 'C'],
+    ['Db3', 6, 'b', '', '4<br>C#<br>Db'], ['D3', 6, 'w', '', 'D'], ['Eb3', 7, 'b', '', '5<br>D#<br>Eb'],
+    ['E3', 7, 'w', 'add9', 'M'], ['F3', 8, 'w', 'M7(9)', 'M7'], ['Gb3', 9, 'b', '', '6<br>7(#9)<br>7(b9)'],
+    ['G3', 9, 'w', 'aug', '6'], ['Ab3', 10, 'b', '', '7<br>7(b13)<br>7(13)'], ['A3', 10, 'w', '7(9)', '7'],
+    ['Bb3', 11, 'b', '', '8<br>7(#11)<br>7(#5)'], ['B3', 11, 'w', 'add9', 'm'], ['C4', 12, 'w', 'm7(9)', 'm7'],
+    ['Db4', 13, 'b', '', '9<br>7sus4<br>sus4'], ['D4', 13, 'w', 'mM7', 'm6'], ['Eb4', 14, 'b', '', '0<br>---<br>dim'],
+    ['E4', 14, 'w', 'm7(11)', 'm7(b5)'],
+  ];
+  const SECTIONS = ['INTRO', 'MAIN A', 'MAIN B', 'FILL AB', 'FILL BA', 'ENDING', 'BLANK'];
+  const ledRec = [], ledPlay = [], ledAmp = [];   // the lights, filled in by buildPanel
+
+  // The indicator latch at 0xA00000: a light is lit while its bit is 0. Bit 0 is the beat light by the
+  // PLAY button (about 43 ms low on every beat while a song or pattern plays), bit 1 the REC light,
+  // bit 2 the AMP SIMULATOR light. The server keeps every change with its age, and the page replays them
+  // a little late (LEDLAG) so that the blinks keep the beat despite the 100 ms polling.
+  const LEDLAG = 160;
+  let ledSeq = 0, ledBusy = false;
+  const setLeds = v => {
+    ledRec[0] && ledRec[0].classList.toggle('on', (v & 2) === 0);
+    ledPlay[0] && ledPlay[0].classList.toggle('on', (v & 1) === 0);
+    ledAmp[0] && ledAmp[0].classList.toggle('on', (v & 4) === 0);
+  };
+  async function pollLeds() {
+    if (ledBusy) return;
+    ledBusy = true;
+    try {
+      const t0 = performance.now();
+      const r = await (await fetch('/leds?since=' + ledSeq)).json();
+      const arrived = (t0 + performance.now()) / 2;   // about when the server looked
+      ledSeq = r.next;
+      for (const [ago, v] of r.ev) setTimeout(() => setLeds(v), Math.max(0, arrived - ago + LEDLAG - performance.now()));
+    } catch (e) { /* the next poll will do */ }
+    ledBusy = false;
+  }
+  setInterval(pollLeds, 100);
+
+  async function buildPanel() {
+    const names = await (await fetch('/keys')).json();
+    const have = new Set(names);
+    // the bezel round the screen, the screen itself, and the lettering
+    // the moulded body: end caps, front lip with screws, a groove above the keyboard and its recessed well
+    deco('cap l', 22, 500, 44, 1000);
+    deco('cap r', 1678, 500, 44, 1000);
+    deco('lip', 850, 975, 1700, 50);
+    deco('groove', 850, 669, 1612, 3);
+    deco('well', 951, 806, 1344, 260);
+    place(document.getElementById('bezel'), 850, 280, 850, 510);
+    place(document.getElementById('lcdwin'), 850, 285, 800, 400);
+    {
+      const brand = document.createElement('div'), cloud = document.createElement('div'), name = document.createElement('span');
+      cloud.className = 'fl cloud'; cloud.style.setProperty('--mask', 'url(/logos/doffu_cloud.svg)');
+      brand.className = 'brand'; name.className = 'fl'; name.textContent = 'DOFFU';
+      name.style.fontSize = 'max(5px, ' + (34 / FW * 100) + 'cqw)';
+      brand.append(cloud, name);
+      place(brand, 850, 53, 420, 50);
+    }
+    text('<b>QY&Omega;</b>', 1180, 513, 30);
+    // the two marks on the lower edge of the bezel, plain lettering
+    text('<span class="xg">GM</span>', 525, 510, 44);
+    text('<span class="xg">XG</span>', 615, 510, 44);
+    deco('ring', 1530, 320, 232, 232);
+    ledAmp.push(deco('fled green', 290, 105, 30, 30));
+    deco('fled', 100, 257, 30, 30);
+    text('PEAK', 175, 257, 24);
+    ledRec.push(deco('fled', 860, 560, 28, 28));
+    ledPlay.push(deco('fled green', 1190, 560, 28, 28));
+    for (const [name, label, cx, cy, w, h, style] of PANEL) {
+      if (!have.has(name)) continue;
+      const b = document.createElement('button');
+      b.className = 'fk ' + style; b.type = 'button'; b.innerHTML = label;
+      bind(b, name);
+      place(b, cx, cy, w, h);
+    }
+    // the keyboard: white keys side by side with no gaps, black keys on top of the boundaries
+    const PITCH = 88, X0 = 335, WTOP = 700, WH = 200, BH = 124, BW = 66;
+    SECTIONS.forEach((s, i) => text(s, X0 + i * PITCH, WTOP + WH + 22, 17));
+    text('&#9664; SECTION', X0 + 7.9 * PITCH, WTOP + WH + 22, 17);
+    for (const [n, col, row, small, big] of KEYS) {
+      if (!have.has('k:' + n)) continue;
+      const b = document.createElement('button');
+      b.className = 'fk pk ' + (row === 'w' ? 'wk' : 'bk'); b.type = 'button';
+      b.innerHTML = (small ? '<span class="t">' + small + '</span>' : '') + '<span class="m">' + big + '</span>';
+      bind(b, 'k:' + n);
+      if (row === 'w') place(b, X0 + col * PITCH, WTOP + WH / 2, PITCH, WH, pianoBox);
+      else place(b, X0 + (col - 0.5) * PITCH, WTOP + BH / 2, BW, BH, pianoBox);
+    }
+    pollLeds();
+  }
+  buildPanel();
+
+  // ---- SysEx: files or hex text go to the emulated unit, replies are listed ----
+  const drop = document.getElementById('drop');
+  const fileIn = document.getElementById('file');
+  const sysout = document.getElementById('sysout');
+  let sending = false;
+  // The bar under the drop zone: percentage, messages and a time left estimate from the pace so far.
+  const progBox = document.getElementById('sysprog'), progFill = document.getElementById('sysfill'), progText = document.getElementById('systext');
+  let progHide = null;
+  function setProgress(sent, total, label, t0, state) {
+    clearTimeout(progHide);
+    progBox.className = 'on' + (state ? ' ' + state : '');
+    const pct = total ? Math.round(100 * sent / total) : 0;
+    progFill.style.width = (state === 'done' ? 100 : pct) + '%';
+    progBox.setAttribute('aria-valuenow', state === 'done' ? 100 : pct);
+    const secs = (Date.now() - t0) / 1000;
+    let text = label + ': ';
+    if (state === 'done') text += 'done, ' + total + ' messages in ' + secs.toFixed(0) + ' s';
+    else if (state === 'failed') text += 'failed after ' + sent + ' of ' + total + ' messages';
+    else if (!total) text += 'starting';
+    else {
+      text += sent + ' of ' + total + ' messages (' + pct + '%)';
+      if (sent >= 5 && sent < total) text += ', about ' + Math.max(1, Math.round(secs * (total - sent) / sent)) + ' s left';
+    }
+    progText.textContent = text;
+    if (state) progHide = setTimeout(() => { progBox.className = ''; }, 8000);
+  }
+  async function sendSysex(body, label) {
+    if (sending) return;
+    sending = true;
+    sysout.textContent = 'sending ' + label + ' ...';
+    // show how far the transfer has got: the unit takes a block at a time, so a big file needs a while
+    const t0 = Date.now();
+    setProgress(0, 0, label, t0, '');
+    const watch = setInterval(async () => {
+      try {
+        const p = await (await fetch('/sysex/progress')).json();
+        if (p.total > 0) {
+          sysout.textContent = 'sending ' + label + ' ...';
+          setProgress(p.sent, p.total, label, t0, '');
+        }
+      } catch (e) { /* the next poll will do */ }
+    }, 300);
+    try {
+      const resp = await fetch('/sysex', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body });
+      if (!resp.ok) { sysout.textContent = resp.status + ': ' + (await resp.text()); setProgress(0, 0, label, t0, 'failed'); return; }
+      const r = await resp.json();
+      setProgress(r.sent, r.sent, label, t0, r.error ? 'failed' : 'done');
+      const lines = ['sent ' + r.sent + ' message' + (r.sent === 1 ? '' : 's') + ', the unit answered with ' + r.replies.length];
+      r.replies.forEach((m, i) => {
+        const b = m.split(' ');
+        lines.push((i + 1) + ': ' + b.length + ' bytes  ' + b.slice(0, 16).join(' ') + (b.length > 16 ? ' ...' : ''));
+      });
+      if (r.other) lines.push('other MIDI: ' + r.other);
+      if (r.error) lines.push('error: ' + r.error);
+      sysout.textContent = lines.join('\n');
+    } catch (e) {
+      sysout.textContent = 'failed: ' + e;
+      setProgress(0, 0, label, t0, 'failed');
+    } finally { clearInterval(watch); sending = false; }
+  }
+  // The unit ignores bulk data and dump requests unless bulk mode is on, so wrap by default.
+  const BULK_ON = [0xF0, 0x43, 0x10, 0x5F, 0x10, 0x00, 0x00, 0x01, 0xF7];
+  const BULK_OFF = [0xF0, 0x43, 0x10, 0x5F, 0x10, 0x00, 0x00, 0x00, 0xF7];
+  function wrap(bytes) {
+    if (!document.getElementById('wrap').checked) return bytes;
+    const out = new Uint8Array(BULK_ON.length + bytes.length + BULK_OFF.length);
+    out.set(BULK_ON, 0); out.set(bytes, BULK_ON.length); out.set(BULK_OFF, BULK_ON.length + bytes.length);
+    return out;
+  }
+  function hexBytes(text) {
+    const parts = text.replace(/0x/gi, ' ').split(/[\s,]+/).filter(Boolean);
+    const out = new Uint8Array(parts.length);
+    parts.forEach((p, i) => { const v = parseInt(p, 16); if (!/^[0-9a-f]{1,2}$/i.test(p) || isNaN(v)) throw new Error(p + ' is not a hex byte'); out[i] = v; });
+    return out;
+  }
+  async function sendFile(f) { sendSysex(wrap(new Uint8Array(await f.arrayBuffer())), f.name); }
+  drop.addEventListener('click', () => fileIn.click());
+  fileIn.addEventListener('change', () => { if (fileIn.files[0]) sendFile(fileIn.files[0]); fileIn.value = ''; });
+  for (const ev of ['dragenter', 'dragover']) drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); });
+  for (const ev of ['dragleave', 'drop']) drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); });
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) sendFile(f); });
+  document.getElementById('sendhex').addEventListener('click', () => {
+    const t = document.getElementById('hex').value.trim();
+    if (!t) return;
+    try { sendSysex(wrap(hexBytes(t)), 'hex text'); } catch (e) { sysout.textContent = String(e.message || e); }
+  });
+
+  // ---- computer keyboard ----
+  const typing = e => e.target && (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT');
+  addEventListener('keydown', e => {
+    const n = CODEMAP[e.code];
+    if (!n || e.repeat || e.ctrlKey || e.metaKey || e.altKey || typing(e)) return;
+    e.preventDefault(); send(n, true);
+  });
+  addEventListener('keyup', e => {
+    const n = CODEMAP[e.code];
+    if (n && !typing(e)) { e.preventDefault(); send(n, false); }
+  });
+  addEventListener('blur', () => { for (const n of [...held]) send(n, false); });
+</script>
+<script>
+// Live MIDI between this page and the ports the user picks. The server filters what the unit
+// sends (midisafe.go); the checks here are a second, independent layer.
+(() => {
+  const $ = id => document.getElementById(id);
+  const enableBtn = $('midiEnable'), inSel = $('midiIn'), outSel = $('midiOut'), stat = $('midistat');
+  const optClock = $('midiClock'), optPC = $('midiPC');
+  const note = stat.textContent;
+  let access = null, inPort = null, outPort = null, since = 0, timer = null;
+  const held = new Set();          // notes sent and not yet released, so they can be let go
+  let blockedText = '';
+
+  // the only messages the page will ever pass to a port: channel voice and the four clock bytes
+  const sane = d => {
+    if (!d.length) return false;
+    const s = d[0];
+    if (s >= 0xF8) return s === 0xF8 || s === 0xFA || s === 0xFB || s === 0xFC;
+    if (s < 0x80 || s >= 0xF0) return false;
+    const need = (s & 0xF0) === 0xC0 || (s & 0xF0) === 0xD0 ? 2 : 3;
+    if (d.length !== need) return false;
+    if ((s & 0xF0) === 0xB0 && (d[1] === 0 || d[1] === 32 || d[1] === 6 || d[1] === 38 || (d[1] >= 96 && d[1] <= 101) || d[1] >= 120)) return false;
+    return true;
+  };
+  const say = t => { stat.textContent = t + (blockedText ? '\n' + blockedText : '') + '\n\n' + note; };
+
+  function fill(sel, ports) {
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">None</option>';
+    for (const p of ports.values()) { const o = document.createElement('option'); o.value = p.id; o.textContent = p.name || p.id; sel.appendChild(o); }
+    if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
+  }
+  function releaseHeld() {
+    if (outPort) for (const k of held) outPort.send([0x80 | (k >> 7), k & 127, 0]);
+    held.clear();
+  }
+  function track(d) {
+    const t = d[0] & 0xF0, k = ((d[0] & 15) << 7) | d[1];
+    if (t === 0x90 && d[2] > 0) held.add(k); else if (t === 0x80 || t === 0x90) held.delete(k);
+  }
+
+  async function push() {
+    const body = JSON.stringify({ Transport: optClock.checked, ProgramChange: optPC.checked });
+    try { await fetch('/midi/policy', { method: 'POST', body }); } catch (e) {}
+  }
+  async function poll() {
+    timer = null;
+    try {
+      const r = await (await fetch('/midi/out?since=' + since, { cache: 'no-store' })).json();
+      since = r.next;
+      const parts = Object.entries(r.blocked || {}).filter(e => e[1]).map(e => e[0] + ' ' + e[1]);
+      blockedText = parts.length ? 'Blocked from leaving so far: ' + parts.join(', ') : '';
+      if (outPort) {
+        const now = performance.now();
+        for (const [ago, hex] of r.msgs) {
+          const d = hex.match(/../g).map(h => parseInt(h, 16));
+          if (!sane(d)) continue;
+          track(d);
+          outPort.send(d, now + Math.max(0, 120 - ago));   // keeps the spacing the unit produced
+        }
+      }
+      if (access) say(outPort ? 'Sending to ' + outPort.name : 'No output selected.');
+    } catch (e) {}
+    timer = setTimeout(poll, outPort ? 40 : 600);
+  }
+
+  let inbuf = [], inTimer = null;
+  function flushIn() {
+    inTimer = null;
+    if (!inbuf.length) return;
+    const b = new Uint8Array(inbuf.splice(0, 900));
+    fetch('/midi/in', { method: 'POST', body: b }).catch(() => {});
+    if (inbuf.length) inTimer = setTimeout(flushIn, 5);
+  }
+  function onIn(ev) {
+    const d = ev.data;
+    if (!d || !d.length || d[0] === 0xF0 || d[0] === 0xFE) return;
+    for (const b of d) inbuf.push(b);
+    if (!inTimer) inTimer = setTimeout(flushIn, 4);
+  }
+
+  function pick() {
+    if (inSel.value && inSel.value === outSel.value) { outSel.value = ''; say('The same port cannot be both In and Out: that would send the unit its own output.'); }
+    if (inPort) { inPort.onmidimessage = null; inPort = null; }
+    if (outPort && outPort.id !== outSel.value) { releaseHeld(); outPort = null; }
+    if (inSel.value) { inPort = access.inputs.get(inSel.value); if (inPort) inPort.onmidimessage = onIn; }
+    if (outSel.value && !outPort) outPort = access.outputs.get(outSel.value) || null;
+    push();
+    if (outPort) say('Sending to ' + outPort.name);
+  }
+
+  enableBtn.addEventListener('click', async () => {
+    if (access) return;
+    if (!navigator.requestMIDIAccess) { say('This browser has no Web MIDI.'); return; }
+    try { access = await navigator.requestMIDIAccess({ sysex: false }); }   // never asks for SysEx
+    catch (e) { say('MIDI access was refused.'); return; }
+    enableBtn.disabled = true; enableBtn.textContent = 'MIDI enabled';
+    inSel.disabled = outSel.disabled = false;
+    const refresh = () => { fill(inSel, access.inputs); fill(outSel, access.outputs); };
+    refresh(); access.onstatechange = () => { refresh(); pick(); };
+    say('Choose a port. Both start on None.');
+    push();
+  });
+  inSel.addEventListener('change', pick);
+  outSel.addEventListener('change', pick);
+  optClock.addEventListener('change', push);
+  optPC.addEventListener('change', push);
+  addEventListener('pagehide', releaseHeld);
+  poll();
+})();
+</script>
+
+</body>
+</html>

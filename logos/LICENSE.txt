@@ -1,0 +1,8 @@
+The Doffu cloud logo (doffu_cloud.svg) and the name "DOFFU" are the property of Doffu.
+
+Copyright (C) 2026 Doffu. All rights reserved.
+
+This logo is NOT covered by the GNU General Public License that applies to the rest of this
+project. You may keep it, unchanged, in an unmodified copy of this project. If you modify or
+redistribute the project under your own name, remove the logo and the name DOFFU and put your own
+branding in their place. Any other use needs written permission from Doffu.
