@@ -67,7 +67,7 @@ author is not known.
 
 The behaviour of the hardware (memory map, key matrix, indicator latch, serial protocols)
 was worked out from the firmware and from Yamaha's published owner's manual, service
-manual and data list. Yamaha, XG and the unit's own sounds belong to Yamaha Corporation.
+manual and data list.
 
 ## Artwork
 
@@ -75,9 +75,7 @@ manual and data list. Yamaha, XG and the unit's own sounds belong to Yamaha Corp
   all rights reserved. They are the maker's own branding and are **not** covered by the GPL. Keep
   them only in unmodified copies; anyone who modifies and redistributes the project under their own
   name has to replace them with their own branding (see `logos/LICENSE.txt`).
-* The marks "GM" and "XG" on the faceplate are plain lettering, not logos. XG is a trademark of
-  Yamaha Corporation and General MIDI is a trademark of the MIDI Manufacturers Association
-  (MMA/AMEI); they are used only to say which standards the emulated unit follows.
+* The marks "GM" and "XG" on the faceplate are plain lettering, not logos.
 * Everything else on the faceplate (the panel drawing and the looks) is drawn by this project and
   covered by the GPL like the code.
 
