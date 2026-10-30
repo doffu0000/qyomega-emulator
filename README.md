@@ -2,6 +2,19 @@
 
 A hardware sequencer emulator in Go and the browser.
 
+![The emulator in the Dark look](docs/screenshots/dark.png)
+
+The same unit in five looks, chosen from a dropdown on the page. Each look restyles the whole device,
+including the lights, the volume fader and the screen tint.
+
+| Frutiger Aero | かわいい (kawaii) |
+| --- | --- |
+| ![Frutiger Aero look](docs/screenshots/aero.png) | ![Kawaii look](docs/screenshots/kawaii.png) |
+
+| Terminal | Vintage |
+| --- | --- |
+| ![Terminal look](docs/screenshots/terminal.png) | ![Vintage look](docs/screenshots/vintage.png) |
+
 This program runs the real firmware of a Yamaha hardware sequencer from 2000 (firmware version 1.37) on a
 software model of its processor, and shows the result in a web page: the LCD, the front panel
 buttons, the micro keyboard, the indicator lights, a SysEx drop zone and sound.
