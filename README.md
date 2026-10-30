@@ -203,5 +203,4 @@ server and the voice map.
 * `NOTICE.md`: credits and what is not covered by the GPL.
 
 The Doffu cloud logo and the name DOFFU are Copyright (C) 2026 Doffu, all rights reserved, and are not
-under the GPL. Yamaha and XG are trademarks of Yamaha Corporation. This is an independent project and
-is not connected to Yamaha.
+under the GPL.
