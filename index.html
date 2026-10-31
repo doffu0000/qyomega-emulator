@@ -425,7 +425,7 @@
   </div>
   <div class="card" id="midicard">
     <h2 class="sect">Live MIDI</h2>
-    <p class="hint" style="margin:0 0 8px">Off until you press Enable. Nothing is opened or remembered between visits. Only ports you pick here are used, and System Exclusive access is never requested from the browser.</p>
+    <p class="hint" style="margin:0 0 8px">Off until you press Enable. Needs a Chromium based browser (Chrome, Edge, Brave, Opera); Firefox and Safari do not support it. Nothing is opened or remembered between visits. Only ports you pick here are used, and System Exclusive access is never requested from the browser.</p>
     <div class="group">
       <button class="k" id="midiEnable" type="button" style="flex:0 0 auto;min-height:28px;padding:2px 10px">Enable MIDI</button>
       <label class="opt" style="margin:0">In <select id="midiIn" disabled aria-label="MIDI input"><option value="">None</option></select></label>
@@ -1041,7 +1041,7 @@
 
   enableBtn.addEventListener('click', async () => {
     if (access) return;
-    if (!navigator.requestMIDIAccess) { say('This browser has no Web MIDI.'); return; }
+    if (!navigator.requestMIDIAccess) { say('This browser has no Web MIDI. Use Chrome, Edge, Brave or Opera.'); return; }
     try { access = await navigator.requestMIDIAccess({ sysex: false }); }   // never asks for SysEx
     catch (e) { say('MIDI access was refused.'); return; }
     enableBtn.disabled = true; enableBtn.textContent = 'MIDI enabled';

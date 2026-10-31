@@ -30,8 +30,11 @@ pick (see below); until you press Enable it does nothing.
 ## Set up in five steps
 
 1. **Install Go** 1.24 or newer from https://go.dev/dl/ (nothing else is needed: no Python, no Node).
-2. **Get the program.** Download or clone this folder, open a terminal in it and build:
-   `go build -o emu .` (this makes `emu.exe` on Windows).
+   On a Mac, use the macOS installer from that page (Apple silicon or Intel), or `brew install go`.
+   Check it with `go version` in a new terminal window.
+2. **Get the program.** Download or clone this folder, open a terminal in it (Terminal on a Mac)
+   and build: `go build -o emu .` (this makes `emu.exe` on Windows). It builds on Windows, macOS and
+   Linux. A program you build yourself is not blocked by macOS.
 3. **Get the firmware yourself.** The program does not include it. You need Yamaha's version
    1.37 update file for the sequencer (the MIDI file from Yamaha's own downloads) or a 2 MiB flash image made from
    it. Use only a copy you are entitled to.
@@ -41,6 +44,9 @@ pick (see below); until you press Enable it does nothing.
 5. **Optional, for better sound:** put a General MIDI soundfont (`.sf2`, `.sf3`, `.dls`) in
    `soundfonts/` and pick it in the Soundfont list. GeneralUser GS by S. Christian Collins works well
    (https://www.schristiancollins.com/generaluser). Sound is off until you press the SOUND tab.
+
+Use a current browser. The emulator and its sound work in any modern one. Live MIDI needs Web MIDI,
+which only Chromium based browsers have (see Live MIDI below).
 
 Trouble? `emu serve --fresh` rebuilds the saved start state, and deleting `boot.snap` does the
 same. Everything runs on your machine; the server only answers on 127.0.0.1.
@@ -67,8 +73,8 @@ the real device.
 You need Go 1.24 or newer, and a firmware image (next section).
 
 ```
-go build -o emu.exe .
-.\emu.exe serve            # then open http://127.0.0.1:8100/
+go build -o emu .          # Windows makes emu.exe
+./emu serve                # Windows: .\emu.exe serve; then open http://127.0.0.1:8100/
 ```
 
 The first start has no `boot.snap`, so the firmware boots from reset. That takes about 35
@@ -122,7 +128,9 @@ with a screen about twice the original size.
   Reset look returns the current look to its defaults.
 * **Soundfont.** The dropdown lists the built in synth and every `.sf2`, `.sf3`, `.dls` or `.sfogg`
   in `soundfonts/`. None is shipped; see `soundfonts/README.md` and `NOTICE.md`.
-* **Live MIDI.** Press Enable on the Live MIDI card to pick a MIDI input (a keyboard or DAW feeds the
+* **Live MIDI.** Browsers: this needs Web MIDI, which Chrome, Edge, Brave, Opera and other Chromium
+  based browsers have. Firefox needs an extra permission step and an add on, and Safari has no Web MIDI,
+  so Live MIDI will not work there (everything else on the page does). Press Enable on the Live MIDI card to pick a MIDI input (a keyboard or DAW feeds the
   unit's MIDI IN) and an output (what the unit sends). It uses the browser's Web MIDI without System
   Exclusive access, both ports start on None and nothing is remembered between visits. The output is
   filtered on the server (`midisafe.go`) with an allow list: notes, pitch bend, aftertouch and the
